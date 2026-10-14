@@ -15,6 +15,7 @@ import { Button } from '../components/ui.jsx'
 import { tappable } from '../lib/use-sheet-keyboard.js'
 import { glyphOf } from '../lib/glyphs.js'
 import { dayNoteOf } from '../lib/day-notes.js'
+import { LITE } from '../lib/lite.js'
 
 // Home = what to do now + a quick glance. Deep charts & history live in Stats.
 export default function Home() {
@@ -63,7 +64,7 @@ export default function Home() {
     const eff = effectiveRoutineIds(S, iso).length > 0, ovr = S.dayPlan[iso] !== undefined, done = doneDays.has(iso)
     // A day off with a note (#261) reads as excused, not as a plan that went by.
     const dot = done ? ' done' : dayNoteOf(S, iso) ? ' noted' : ovr && eff ? ' ovr' : eff ? ' plan' : ''
-    strip.push(<div key={i} className={'wday' + (iso === todayISO() ? ' today' : '')} {...tappable(() => dayOverrideSheet(iso))}>
+    strip.push(<div key={i} className={'wday' + (iso === todayISO() ? ' today' : '')} {...(LITE ? {} : tappable(() => dayOverrideSheet(iso)))}>
       <div className="lbl">{t(DAYS[d.getDay()])}</div><div className="num">{d.getDate()}</div><div className={'dot' + dot} /></div>)
   }
   const wkEnd = new Date(wkStart); wkEnd.setDate(wkStart.getDate() + 6)
@@ -95,7 +96,11 @@ export default function Home() {
   const bwPoints = S.bodyweight.slice(-30).map(b => ({ t: b.t || new Date(b.d).getTime(), y: b.w, d: b.d }))
 
   // today's session shown right under the week strip
-  const onToday = () => { if (S.active) nav('/workout'); else if (todayRoutines.length) startFlow(effectiveRoutineIds(S, todayISO())); else dayOverrideSheet(todayISO()) }
+  const onToday = () => {
+    if (S.active || LITE) nav('/workout')
+    else if (todayRoutines.length) startFlow(effectiveRoutineIds(S, todayISO()))
+    else dayOverrideSheet(todayISO())
+  }
   // A chip on the coach week's progress row starts that one routine, in any order. A session
   // already in progress wins, as on the today row — starting another would overwrite it.
   const onQueueStart = id => { if (S.active) nav('/workout'); else startFlow([id]) }
@@ -110,7 +115,9 @@ export default function Home() {
       {/* A coach week runs by order, not by weekday, so its progress row stands in for the
           seven dots (components/QueueRow.jsx). The today row below stays as it is: the queue's
           next session reaches it through effectiveRoutineIds like any planned routine. */}
-      {rotating ? (queue ? <QueueRow S={S} today={todayISO()} onStart={onQueueStart} managed={managedQueue} /> : <div className="empty">
+      {LITE ? <>
+        <div className="week">{strip}</div>
+      </> : rotating ? (queue ? <QueueRow S={S} today={todayISO()} onStart={onQueueStart} managed={managedQueue} /> : <div className="empty">
         {t('No rotation yet. Add routines to it in Plan.')}
         <div style={{ marginTop: 10 }}><Button size="sm" variant="tinted" onClick={() => nav('/plan')}>{t('Set up in Plan')}</Button></div>
       </div>) : <>
@@ -136,8 +143,8 @@ export default function Home() {
             <div className="lbl2">{t('Today')}</div>
             <div className="ttl">{S.active ? (editingSaved ? S.active.name : t('{0} (in progress)', S.active.name))
               : doneToday ? (doneToday.name ? t('{0} (done)', doneToday.name) : t('Workout done'))
-              : routine ? todayName : t('Rest day')}{todayOvr && routine && !doneToday ? ' · ' + t('rescheduled') : ''}</div>
-            {next && !doneToday && <div className="ss">{t('Next session: {0}, {1}', t(DAYN[next.weekday]), next.routine.name)}</div>}
+              : LITE ? '可以开始训练' : routine ? todayName : t('Rest day')}{!LITE && todayOvr && routine && !doneToday ? ' · ' + t('rescheduled') : ''}</div>
+            {!LITE && next && !doneToday && <div className="ss">{t('Next session: {0}, {1}', t(DAYN[next.weekday]), next.routine.name)}</div>}
           </div>
         </div>
         {S.active ? <span className="tag" style={{ color: 'var(--orange)', background: 'color-mix(in srgb,var(--orange) 16%,transparent)' }}>{editingSaved ? t('Edit') : t('Resume')}</span>
@@ -152,15 +159,16 @@ export default function Home() {
           way in, "Choose a different workout" on the weigh-in sheet, does not exist when the
           weigh-in is switched off. This is that door, and it starts nothing on its own. */}
       {!S.active && <div style={{ display: 'flex', justifyContent: 'center', marginTop: 4 }}>
-        <Button size="sm" variant="ghost" className="dim" icon="swap" onClick={() => nav('/workout')}>
-          {t('Choose a different workout')}
+        <Button size="sm" variant="ghost" className="dim" icon={LITE ? 'plus' : 'swap'} onClick={() => nav('/workout')}>
+          {LITE ? '开始自由训练' : t('Choose a different workout')}
         </Button>
       </div>}
     </div>
 
     {/* Jump to the gym check-in cards (QR membership codes). Shown here as a quick tap on
-        arrival at the gym; folds away per user via the "Gym check-in" switch in Settings. */}
-    {S.checkIn !== false && (
+        arrival at the gym; folds away per user via the "Gym check-in" switch in Settings.
+        精简模式 removes the card (and its route) altogether — lib/lite.js. */}
+    {!LITE && S.checkIn !== false && (
       <div className="card tappable" style={{ cursor: 'pointer' }} {...tappable(() => nav('/checkin'))}>
         <div className="row between">
           <div className="row" style={{ gap: 9 }}>
@@ -175,7 +183,16 @@ export default function Home() {
       </div>
     )}
 
-    {!S.routines.length && !S.active && (
+    {LITE ? (!S.active && (
+      <div className="card">
+        <div className="row" style={{ gap: 10, marginBottom: 6 }}>
+          <span className="lrow-i"><Icon name="dumbbell" /></span>
+          <div className="big" style={{ fontSize: 22 }}>{t('Welcome!')}</div>
+        </div>
+        <div className="muted small" style={{ marginBottom: 12 }}>点开开始，选择动作，逐组记录。</div>
+        <Button variant="primary" icon="play" onClick={() => nav('/workout')}>开始自由训练</Button>
+      </div>
+    )) : (!S.routines.length && !S.active && (
       <div className="card">
         <div className="row" style={{ gap: 10, marginBottom: 6 }}>
           <span className="lrow-i"><Icon name="calendar" /></span>
@@ -185,7 +202,7 @@ export default function Home() {
         <Button variant="primary" icon="clipboard" onClick={starterPlanSheet}>{t('Load starter plan')}</Button>
         <div style={{ height: 8 }} /><Button onClick={() => nav('/plan')}>{t('Build my own plan')}</Button>
       </div>
-    )}
+    ))}
 
     {S.showWeightCard !== false && <div className="card">
       <div className="row between bw-head" style={{ marginBottom: 6 }}>

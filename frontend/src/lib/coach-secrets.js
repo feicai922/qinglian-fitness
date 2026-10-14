@@ -63,3 +63,10 @@ export async function secureRemove(key) {
 export const getApiKey = () => secureGet(KEY)
 export const setApiKey = value => secureSet(KEY, value)
 export const clearApiKey = () => secureRemove(KEY)
+
+// 精简版(Lite)的 AI 教练允许切换模型服务，所以密钥按服务分开存：一个 base URL 的密钥不会
+// 在切到另一个服务时被覆盖。provider 只允许字母数字、点、下划线与短横线，拼进 key 名是安全的。
+const keyFor = provider => KEY + '.' + String(provider || '').replace(/[^a-z0-9._-]/gi, '')
+export const getProviderApiKey = provider => provider ? secureGet(keyFor(provider)) : getApiKey()
+export const setProviderApiKey = (provider, value) => provider ? secureSet(keyFor(provider), value) : setApiKey(value)
+export const clearProviderApiKey = provider => provider ? secureRemove(keyFor(provider)) : clearApiKey()

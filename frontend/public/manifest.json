@@ -1,7 +1,7 @@
 {
-  "name": "openGym",
-  "short_name": "openGym",
-  "description": "Personal gym & body weight tracker",
+  "name": "轻练",
+  "short_name": "轻练",
+  "description": "中文优先的健身训练记录应用：循环训练计划、动作记录、AI 教练与按需在线加载动作素材。",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",

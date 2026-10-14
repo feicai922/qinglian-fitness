@@ -1,7 +1,8 @@
 import { describe, it, expect } from 'vitest'
 import {
   LANGS, INSTR_LANGS, EXERCISE_NAME_LANGS, DATE_LOCALES, DERIVED_LOCALES,
-  baseLang, derivePack, dateLocale, getLang, t, _setLangState, exerciseNameClass, exerciseNameFor, CASED_NAME_LANGS
+  baseLang, derivePack, dateLocale, getLang, t, _setLangState, exerciseNameClass, exerciseNameFor, CASED_NAME_LANGS,
+  defaultExerciseNameParens
 } from './i18n-core.js'
 import { EXDB } from './exercises-data.js'
 import de from '../locales/de.js'
@@ -23,6 +24,16 @@ describe('baseLang', () => {
     // exactly when de does — there is no second list entry to remember.
     expect(INSTR_LANGS.includes(baseLang('de-CH'))).toBe(INSTR_LANGS.includes('de'))
     expect(EXERCISE_NAME_LANGS.includes(baseLang('de-CH'))).toBe(EXERCISE_NAME_LANGS.includes('de'))
+  })
+})
+
+describe('defaultExerciseNameParens', () => {
+  it('shows the translated name alone in Chinese, and the English original elsewhere', () => {
+    expect(defaultExerciseNameParens('zh')).toBe(false)
+    expect(defaultExerciseNameParens('zh-TW')).toBe(false)
+    expect(defaultExerciseNameParens('en')).toBe(true)
+    expect(defaultExerciseNameParens('de')).toBe(true)
+    expect(defaultExerciseNameParens('de-CH')).toBe(true)
   })
 })
 

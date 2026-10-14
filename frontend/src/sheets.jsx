@@ -41,6 +41,7 @@ import { normalizeRepRange } from './lib/rep-range.js'
 import { isBackoff, backoffWeights } from './lib/backoff.js'
 import { isPyramid, normalizePyramid, normalizePyramidRest, normalizePyramidWeight, pyramidFromFlat, flatFromPyramid, pyramidLabel, PYRAMID_MAX, MAX_PYRAMID_SETS, PYRAMID_PRESETS } from './lib/pyramid.js'
 import { MOBILE, shareExport, shareExportBlob, printHtml } from './lib/mobile.js'
+import { LITE } from './lib/lite.js'
 import { speedUnitOf, toSpeed, fromSpeed } from './lib/speed.js'
 import { buildCompletedWorkout, sessionEnd } from './lib/finish-workout.js'
 import { refillAfter } from './lib/rotation.js'
@@ -229,7 +230,7 @@ function StarterPlanChooser({ close }) {
           <button className={'chip nocap' + (!fit ? ' on' : '')} onClick={() => setFitId('')}>{t('As written')}</button>
           {profiles.map(p => <button key={p.id} className={'chip nocap' + (fit?.id === p.id ? ' on' : '')} onClick={() => setFitId(p.id)}>{p.name}</button>)}
         </div>
-      : <div className="small dim" style={{ margin: '0 0 10px' }}>{t('Add an equipment profile in Settings to fit a plan to what you own.')}</div>}
+      : !LITE && <div className="small dim" style={{ margin: '0 0 10px' }}>{t('Add an equipment profile in Settings to fit a plan to what you own.')}</div>}
     <div className="list">
       {starterPlanOptions().map(({ id, days }) => {
         const { name, about } = PLAN_COPY[id]()
@@ -1015,11 +1016,20 @@ function ExerciseDetail({ ex, close }) {
     {/* No one-rep max on an assistance machine: the load is the help you were given, so the
         calculator would answer "your 1RM is 23 kg" about a number that gets smaller as you get
         stronger (issue #232). Cardio has none for the same kind of reason. */}
-    {!isCardio(ex) && !isAssisted(ex) && <OneRM ex={ex} />}
-    {instrFor(ex).length > 0 &&<><h4 className="sec">{t('How to')}{getLang() !== 'en' && !instrTranslated(ex) && <span className="dim" style={{ textTransform: 'none', letterSpacing: 0 }}> · {t('instructions in English')}</span>}</h4><ol className="steps-list">{instrFor(ex).map((s, i) => <li key={i}>{s}</li>)}</ol></>}
+    {/* 精简模式: the estimated-1RM calculator is upstream's (lib/lite.js) — the fork logs the
+        sets you did, it does not turn one of them into a predicted max. */}
+    {!LITE && !isCardio(ex) && !isAssisted(ex) && <OneRM ex={ex} />}
+    {/* 精简模式 (lib/lite.js) is Chinese-only: an exercise with no Chinese steps shows a
+        short note instead of falling back to the English catalogue steps. */}
+    {LITE
+      ? (instrTranslated(ex)
+        ? <><h4 className="sec">{t('How to')}</h4><ol className="steps-list">{instrFor(ex).map((s, i) => <li key={i}>{s}</li>)}</ol></>
+        : <div className="small dim">这个动作暂无中文教程。</div>)
+      : instrFor(ex).length > 0 && <><h4 className="sec">{t('How to')}{getLang() !== 'en' && !instrTranslated(ex) && <span className="dim" style={{ textTransform: 'none', letterSpacing: 0 }}> · {t('instructions in English')}</span>}</h4><ol className="steps-list">{instrFor(ex).map((s, i) => <li key={i}>{s}</li>)}</ol></>}
     {/* The catalogue is community-edited (catalogue/README.md): a wrong muscle, a clumsy step or a
-        missing translation is one tap from an issue that already names the exercise. */}
-    {!isCustomEx(ex) && !ex.missing && <a className="small dim exfix-link" target="_blank" rel="noopener"
+        missing translation is one tap from an issue that already names the exercise. 精简模式
+        leaves the tracker's own hub out (lib/lite.js). */}
+    {!LITE && !isCustomEx(ex) && !ex.missing && <a className="small dim exfix-link" target="_blank" rel="noopener"
       href={'https://github.com/DuarteSantos8/openGym/issues/new?template=exercise.yml&exercise=' + encodeURIComponent(ex.id + ', ' + ex.n)}>
       <Icon name="pencil" /> {t('Suggest a fix for this exercise')}</a>}
   </>
@@ -1046,13 +1056,15 @@ function ExerciseHistory({ exId }) {
   </>
   const tail = s => [
     s.volume > 0 && t('Volume') + ' ' + fmtVol(s.volume, st.unit),
-    s.e1rm != null && t('Est. 1RM') + ' ' + fmtNum(s.e1rm) + ' ' + st.unit,
+    // 精简模式: no estimated 1RM (lib/lite.js) — a session line is volume and its sets.
+    !LITE && s.e1rm != null && t('Est. 1RM') + ' ' + fmtNum(s.e1rm) + ' ' + st.unit,
   ].filter(Boolean).join(' · ')
   return <>
     <h3 className={exerciseNameClass(ex)} style={{ marginBottom: 2 }}>{exerciseNameFor(ex)}</h3>
     <div className="muted small" style={{ marginBottom: 10 }}>{t('Exercise history')} · {tn('{0} session', '{0} sessions', h.total)}</div>
-    {/* Only reps work with a load produces an estimate, so the toggle is absent for the rest. */}
-    {h.e1rmPoints.length > 0 && h.metric === 'weight' && <Segmented className="seg-range" value={curve} onChange={setCurve}
+    {/* Only reps work with a load produces an estimate, so the toggle is absent for the rest.
+        精简模式 leaves the estimate out too (lib/lite.js). */}
+    {!LITE && h.e1rmPoints.length > 0 && h.metric === 'weight' && <Segmented className="seg-range" value={curve} onChange={setCurve}
       options={[{ value: 'top', label: t('Top set') }, { value: 'e1rm', label: t('Est. 1RM') }]} />}
     <div className="chart" style={{ marginTop: 8 }}>
       <LineChart points={onE1 ? h.e1rmPoints : h.points} h={140} unit={onE1 ? st.unit : unit} color="var(--blue)" />
@@ -1229,7 +1241,10 @@ function CustomExForm({ existing, prefill, onDone, close }) {
     {bp === 'cardio' && <div className="small dim row" style={{ marginBottom: 10, gap: 5 }}><Icon name="figureRun" style={{ fontSize: 13 }} />{t('Cardio exercises log time + speed instead of weight × reps.')}</div>}
     <textarea className="input" rows={4} maxLength={1000} placeholder={t('Description (optional): setup, cues, anything you want to remember')}
       value={desc} onChange={e => setDesc(e.target.value)} />
-    <CustomMediaField media={media} url={url} onChange={onMedia} />
+    {/* 精简模式: a custom exercise is a name and a body part; the photo/GIF/link field is
+        upstream's and stays out (lib/lite.js). The state keys are untouched, so a custom
+        exercise made on the full build keeps its media when this one edits its name. */}
+    {!LITE && <CustomMediaField media={media} url={url} onChange={onMedia} />}
     <div style={{ height: 14 }} />
     <Button variant="primary" onClick={save}>{existing ? t('Save') : t('Create exercise')}</Button>
     {existing && <><div style={{ height: 8 }} /><Button variant="danger" icon="trash" onClick={() => { close(); deleteCustomEx(existing) }}>{t('Delete exercise')}</Button></>}
@@ -1342,7 +1357,7 @@ function ExercisePicker({ onPick, title, close, like }) {
         <button className="iconbtn chev" aria-label={t('Add “{0}”', exerciseNameFor(e))} style={{ padding: 8, margin: -8 }}
           onClick={ev => { ev.stopPropagation(); onPick(e, true) }}><Icon name="plus" /></button>
       </div>
-  if (byMuscle) return <>
+  if (!LITE && byMuscle) return <>
     <div className="row between" style={{ marginBottom: 10 }}><h3>{title || t('Add exercise')}</h3>
       <Button size="sm" variant="ghost" onClick={() => setByMuscle(false)}>{t('All')}</Button>
     </div>
@@ -1351,7 +1366,7 @@ function ExercisePicker({ onPick, title, close, like }) {
 
   return <>
     <div className="row between" style={{ marginBottom: 10 }}><h3>{title || t('Add exercise')}</h3>
-      <Button size="sm" variant="tinted" icon="figureStrength" onClick={() => setByMuscle(true)}>{t('By muscle')}</Button>
+      {!LITE && <Button size="sm" variant="tinted" icon="figureStrength" onClick={() => setByMuscle(true)}>{t('By muscle')}</Button>}
     </div>
     {/* .picker-search is what index.css keys the keyboard-aware sheet layout on: the sheet
         lifts above the keys and the search stays put while the list scrolls under it. */}
@@ -1680,7 +1695,9 @@ function ExConfig({ ex, existing, onSave, onDelete, onReplace, close, routine, i
       : next
   })
   const save = () => {
-    if (progressionStepInvalid) return
+    // 精简模式 hides the progression fields, so a bad default must not block saving a plan
+    // (lib/lite.js); the full build still refuses the step it cannot honour.
+    if (!LITE && progressionStepInvalid) return
     close()
     const sets = Math.max(1, Math.round(c.sets) || (cardio ? 1 : 3))
     // Only carry progression settings that differ from the inherited default, so a plan file
@@ -1805,7 +1822,7 @@ function ExConfig({ ex, existing, onSave, onDelete, onReplace, close, routine, i
     </div>
     {/* Pyramid sets: a row per set, each with its own reps or Max, rest and weight. A set left
         at 0 weight starts from that same set last time (buildSets). */}
-    {pyramid && <div style={{ marginTop: -10, marginBottom: 18 }}>
+    {!LITE && pyramid && <div style={{ marginTop: -10, marginBottom: 18 }}>
       {/* Presets replace the list (and its rests and weights) in one tap; the sheet is not saved
           until Save. */}
       <div className="chips" style={{ marginBottom: 10 }}>
@@ -1857,7 +1874,7 @@ function ExConfig({ ex, existing, onSave, onDelete, onReplace, close, routine, i
     {/* Planned warm-ups: the session used to start at the work weight and you added every
         warm-up by hand, every time. Rest-pause is excluded because it builds its own warm-up
         row, and cardio because an interval plan has no load to ramp. */}
-    {!cardio && c.intensifier?.type !== 'restpause' && <>
+    {!LITE && !cardio && c.intensifier?.type !== 'restpause' && <>
       <div className="row cfgrow" style={{ marginBottom: 6 }}>
         <Stepper label={t('Warm-up sets')} value={c.warmupSets || 0} step={1} decimal={false}
           onChange={v => setC(x => ({ ...x, warmupSets: Math.max(0, Math.min(MAX_PLANNED_WARMUPS, Math.round(v) || 0)) }))} />
@@ -1876,6 +1893,7 @@ function ExConfig({ ex, existing, onSave, onDelete, onReplace, close, routine, i
         and a cardio interval all rest — they just do not all want the same break. */}
     {/* On the same wheel as the default rest timer (v1.3.11): 0:00 is "no rest of its own", so
         the default applies, and the row says which default that is. */}
+    {!LITE && <>
     <div className="sect-b cfg-rest" style={{ marginBottom: 6 }}>
       <Row icon="timer" iconTint="var(--orange)" title={t('Rest for this exercise')} accessory="chevron"
         value={c.restSec > 0 ? fmtRest(c.restSec) : t('Default ({0})', fmtRest(st.restSec))}
@@ -1889,8 +1907,9 @@ function ExConfig({ ex, existing, onSave, onDelete, onReplace, close, routine, i
     <div className="small dim" style={{ marginBottom: 18 }}>
       {t('Rest after each set of this exercise. 0:00 means your default rest.')}
     </div>
+    </>}
     {/* ---------- bodyweight + per side (issues #31/#32/#33) ---------- */}
-    {!cardio && <div className="sect-b" style={{ marginBottom: 8 }}>
+    {!LITE && !cardio && <div className="sect-b" style={{ marginBottom: 8 }}>
       <Row icon="figureStrength" iconTint="var(--acc)" title={t('Bodyweight')}
         subtitle={bw ? (mode === 'time' ? t('No weight to enter. Just time the hold.') : t('No weight to enter. Just log the reps.')) : t('Ask for a weight on every set.')}>
         <Switch checked={bw} onChange={v => setC(x => ({ ...x, bodyweight: v, weight: v ? 0 : x.weight }))} />
@@ -1941,17 +1960,18 @@ function ExConfig({ ex, existing, onSave, onDelete, onReplace, close, routine, i
       </div>
     </>}
     {/* The rep ceiling only means something when there is no load to add instead. */}
-    {mode === 'reps' && bw && !(c.weight > 0) && <div className="row cfgrow" style={{ marginBottom: 18 }}>
+    {!LITE && mode === 'reps' && bw && !(c.weight > 0) && <div className="row cfgrow" style={{ marginBottom: 18 }}>
       <Stepper label={t('Top of the range')} value={c.repsMax || 0} step={1} decimal={false}
         onChange={v => setC(x => ({ ...x, repsMax: v }))} />
     </div>}
-    {mode === 'reps' && bw && !(c.weight > 0) && <div className="small dim" style={{ marginTop: -10, marginBottom: 18 }}>
+    {!LITE && mode === 'reps' && bw && !(c.weight > 0) && <div className="small dim" style={{ marginTop: -10, marginBottom: 18 }}>
       {c.repsMax > 0
         ? t('Reps climb to {0}, then a set is added and the reps start over. At {1} sets it asks you to add weight instead.', c.repsMax, MAX_BW_SETS)
         : t('Reps climb by one whenever every set was clean. Set a ceiling to add sets instead of reps forever.')}
     </div>}
-    {/* A pyramid already shapes every set; a drop-set or rest-pause would reshape them again. */}
-    {mode === 'reps' && !pyramid && <>
+    {/* A pyramid already shapes every set; a drop-set or rest-pause would reshape them again.
+        精简模式 keeps the routine editor to sets, reps, weight and progression (lib/lite.js). */}
+    {!LITE && mode === 'reps' && !pyramid && <>
       <h4 className="sec">{t('Drop-set / rest-pause')}</h4>
       <div className="sect-b" style={{ marginBottom: 8 }}>
         <SelectRow title={t('Intensifier')} sheetTitle={t('Intensifier')} value={c.intensifier?.type || ''}
@@ -1990,27 +2010,29 @@ function ExConfig({ ex, existing, onSave, onDelete, onReplace, close, routine, i
     </>}
     {/* What a dumbbell weight means, for this routine's slot (cfg.dbLoad). Picking what the
         exercise already means drops the key, so the slot follows the exercise's default again. */}
-    {isBellEx(ex) && !bw && mode !== 'cardio' && <>
+    {!LITE && isBellEx(ex) && !bw && mode !== 'cardio' && <>
       <h4 className="sec">{t('Weight means')}</h4>
       <DbLoadPicker ex={ex} cfg={c} value={dbLoadFor(st, { ...c, id: ex.id })}
         onChange={v => setC(x => ({ ...x, dbLoad: v === dbLoadFor(st, ex.id) ? undefined : v }))} />
     </>}
     {/* How the weight is plate-loaded and what the bar weighs — per exercise, not per plan, so
         it sits apart from the config fields above and writes straight to S.barWeights/S.loadKind. */}
-    {mode === 'reps' && <>
+    {!LITE && mode === 'reps' && <>
       <h4 className="sec">{t('Plate loading')}</h4>
       <BarWeightEditor ex={ex} cfg={c} extra={t('Applies to this exercise everywhere, not just this plan.')} />
     </>}
-    {pyramid
+    {/* 精简模式 keeps the routine editor to sets, reps, weight and a note (lib/lite.js):
+        progression rules, back-off sets and pyramid weight shaping are upstream's. */}
+    {!LITE && (pyramid
       ? <div className="small dim" style={{ marginBottom: 18 }}>{t('Weight is up to you: pyramid sets are not progressed automatically.')}</div>
-      : <ProgressionFields ex={ex} mode={mode} c={c} setC={setC} routine={routine} unit={st.unit} perSide={perSide} bw={bw} />}
+      : <ProgressionFields ex={ex} mode={mode} c={c} setC={setC} routine={routine} unit={st.unit} perSide={perSide} bw={bw} />)}
     <textarea className="input" rows={3} maxLength={500} style={{ marginBottom: 18 }}
       placeholder={t('Note (optional): loading cues, "bar only, then +1 plate/side each set", anything worth remembering')}
       value={c.note || ''} onChange={e => setC(x => ({ ...x, note: e.target.value }))} />
     {/* What saving does, when it is neither of the two usual things: the routine editor's
         Replace (#110) seeds this sheet with the slot it replaces, and saving puts the exercise
         into that slot. */}
-    <Button variant="primary" disabled={progressionStepInvalid} onClick={save}>{saveLabel || (existing ? t('Save') : t('Add to routine'))}</Button>
+    <Button variant="primary" disabled={!LITE && progressionStepInvalid} onClick={save}>{saveLabel || (existing ? t('Save') : t('Add to routine'))}</Button>
     {isCustomEx(ex) && <><div style={{ height: 8 }} /><Button icon="pencil" onClick={() => { close(); customExSheet(ex) }}>{t('Edit or delete this exercise')}</Button></>}
     {/* The routine editor's counterpart to a workout's Swap (#110): another exercise in this
         slot, with the slot's sets, reps, weight, rule and note kept (lib/routines.js). What was
@@ -2532,8 +2554,9 @@ function WorkoutDetail({ w, close }) {
         {entryRows(g.units)}
       </div>
     }) : entryRows(groups[0]?.units || [])}
-    {/* Progress photos and form-check videos: added and removed right here, on the saved record. */}
-    <WorkoutMediaSection w={w} />
+    {/* Progress photos and form-check videos: added and removed right here, on the saved record.
+        精简模式 leaves them out (lib/lite.js); the record itself is untouched. */}
+    {!LITE && <WorkoutMediaSection w={w} />}
     <div className="small muted" style={{ margin: '4px 0 6px' }}>{t('Session note')}</div>
     <textarea ref={noteRef} className="input" rows={2} maxLength={NOTE_MAX} value={note}
       placeholder={t('How the session went as a whole.')}
@@ -2568,7 +2591,9 @@ function WorkoutDetail({ w, close }) {
       initial.current = latest.current.trim().slice(0, NOTE_MAX)
       workoutDurationSheet(w, close)
     }}>{t('Change duration')}</Button>
-    <Button icon="plus" onClick={() => confirmSheet({
+    {/* 精简模式 keeps a saved workout as a log entry: no "Save as routine" or "Copy as text"
+        (lib/lite.js). The handlers stay in the build for the full app. */}
+    {!LITE && <><Button icon="plus" onClick={() => confirmSheet({
       title: t('Save as routine?'),
       message: t('Create an independent routine from these exercise targets. Your workout history is kept.'),
       confirmText: t('Save'),
@@ -2581,11 +2606,13 @@ function WorkoutDetail({ w, close }) {
       }
     })}>{t('Save as routine')}</Button>
     <div style={{ height: 8 }} />
-    <Button icon="copy" onClick={copyAsText}>{t('Copy as text')}</Button>
-    <div style={{ height: 8 }} />
-    <Button icon="share" onClick={shareAsImage}>{t('Share as image')}</Button>
-    <div style={{ height: 8 }} />
-    <Button icon="download" onClick={exportFit}>{t('Export as .fit file')}</Button>
+    <Button icon="copy" onClick={copyAsText}>{t('Copy as text')}</Button></>}
+    {/* 精简模式 keeps a session a log entry: no share card and no Garmin .fit export
+        (lib/lite.js). The card and file code stay in the build. */}
+    {!LITE && <><div style={{ height: 8 }} />
+      <Button icon="share" onClick={shareAsImage}>{t('Share as image')}</Button>
+      <div style={{ height: 8 }} />
+      <Button icon="download" onClick={exportFit}>{t('Export as .fit file')}</Button></>}
     <div style={{ height: 10 }} />
     {/* Matched the way the edits above are, not by id: a workout from before ids has none, and
         filtering on `x.id !== undefined` took every other one of them with it. */}
@@ -3316,9 +3343,10 @@ function FinishSummary({ w, prs, e1prs = [], close }) {
       <div className="tile"><div className="l">{t('Sets')}</div><div className="v" style={{ fontSize: '1.1rem' }}>{setsWorkCount(setsDone(w), workSetsDone(w))}</div></div>
       <div className="tile"><div className="l">{t('PRs')}</div><div className="v" style={{ fontSize: 20 }}>{prs.length || '–'}</div></div>
     </div>
-    {(prs.length > 0 || e1prs.length > 0) && <div style={{ textAlign: 'start', marginBottom: 12 }}>
+    {/* 精简模式: the load PRs stay, the estimated-1RM PRs do not (lib/lite.js). */}
+    {(prs.length > 0 || (!LITE && e1prs.length > 0)) && <div style={{ textAlign: 'start', marginBottom: 12 }}>
       {prs.map(id => <div key={id} className="small accent row" style={{ gap: 5 }}><Icon name="trophy" style={{ fontSize: 13 }} />{t('New PR:')} <span className={exerciseNameClass(EXIDX[id])}>{EXIDX[id] ? exerciseNameFor(EXIDX[id]) : id}</span></div>)}
-      {e1prs.map(p => <div key={p.id} className="small accent row" style={{ gap: 5 }}><Icon name="chartLine" style={{ fontSize: 13 }} />{t('Best estimated 1RM:')} <span className={exerciseNameClass(EXIDX[p.id])}>{EXIDX[p.id] ? exerciseNameFor(EXIDX[p.id]) : p.id}</span> · {fmtNum(p.est)} {st.unit}</div>)}
+      {!LITE && e1prs.map(p => <div key={p.id} className="small accent row" style={{ gap: 5 }}><Icon name="chartLine" style={{ fontSize: 13 }} />{t('Best estimated 1RM:')} <span className={exerciseNameClass(EXIDX[p.id])}>{EXIDX[p.id] ? exerciseNameFor(EXIDX[p.id]) : p.id}</span> · {fmtNum(p.est)} {st.unit}</div>)}
     </div>}
     <h4 className="sec" style={{ textAlign: 'start' }}>{t('What you just trained')}</h4>
     <BodyMap load={loadOfWorkouts([w])} body={st.body} />
@@ -3326,8 +3354,9 @@ function FinishSummary({ w, prs, e1prs = [], close }) {
     <LastAndNext st={st} w={w} />
     <CardioDone st={st} w={w} />
     {/* The moment for a progress photo or the clip of a set: the workout is already saved, so
-        what is added here goes straight onto its record. */}
-    <div style={{ textAlign: 'start' }}><WorkoutMediaSection w={w} hint /></div>
+        what is added here goes straight onto its record. 精简模式 keeps the summary to the
+        numbers and what was trained (lib/lite.js). */}
+    {!LITE && <div style={{ textAlign: 'start' }}><WorkoutMediaSection w={w} hint /></div>}
     <Button variant="primary" onClick={() => closeThenNav(close, '/home')}>{t('Nice!')}</Button>
   </div>
 }

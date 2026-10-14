@@ -24,6 +24,7 @@ import { speedUnitOf } from '../lib/speed.js'
 import { POLICIES_FOR, POLICY_NAME, POLICY_DESC } from '../lib/progression.js'
 import BodyMap from '../components/BodyMap.jsx'
 import { loadOfRoutine, rankOf, MUSCLE_NAME } from '../lib/muscles.js'
+import { LITE } from '../lib/lite.js'
 
 export const ROUTINE_LONG_PRESS_MS = 380
 export const ROUTINE_DRAG_SLOP = 8
@@ -206,6 +207,7 @@ function useRoutineReorder(routineIdentity, exercises, onDrop) {
       updateDrag(gesture, gesture.lastX, gesture.lastY)
     }
     const onPointerDown = event => {
+      if (LITE) return
       // a new touch is intentional — never let the post-drop guard eat its click
       suppressClickRef.current = false
       window.clearTimeout(suppressTimerRef.current)
@@ -472,29 +474,31 @@ export default function RoutineEdit() {
       <button className="iconbtn" aria-label={t('Pick an icon')} onClick={() => glyphPicker(r.emoji, g => update(s => { s.routines.find(x => x.id === id).emoji = g }))}><Icon name={glyphOf(r.emoji)} /></button>
     </div>
 
-    <div className="sect-b" style={{ marginBottom: 16 }}>
-      <SelectRow icon="chartLine" title={t('Progression')} sheetTitle={t('Progression')}
-        value={r.prog || 'linear'} onChange={v => update(s => { s.routines.find(x => x.id === id).prog = v })}
-        options={POLICIES_FOR.reps.map(p => ({ value: p, label: t(POLICY_NAME[p]), subtitle: t(POLICY_DESC[p]) }))} />
-      {/* Two controls that read alike and are not (issue #294). Progression picks how this
-          routine's own targets move, and "No automatic progression" keeps them where they are.
-          This switch decides whether the routine's workouts count at all: a deload routine's
-          sessions open at its own numbers and are never the baseline the next regular session
-          progresses from (session-start.js, history.js entryExcluded). */}
-      <Row icon="chartLineSlash" iconTint="var(--orange)" title={t('Deload routine')}
-        subtitle={t('Its workouts do not count toward progression. They still show in history and statistics.')}>
-        <Switch checked={r.excludeFromProgression === true} onChange={v => update(s => {
-          const routine = s.routines.find(x => x.id === id)
-          if (v) routine.excludeFromProgression = true
-          else delete routine.excludeFromProgression
-        })} />
-      </Row>
-    </div>
-    <div className="small dim" style={{ margin: '-10px 2px 16px' }}>
-      {r.excludeFromProgression
-        ? t('A deload routine opens at the numbers set here, so the progression above does not apply to it.') + ' ' + t('The next regular target continues from the last included workout.')
-        : t(POLICY_DESC[r.prog || 'linear'] || POLICY_DESC.linear) + ' ' + t('Applies to every exercise in this routine that does not set its own rule.')}
-    </div>
+    {!LITE && <>
+      <div className="sect-b" style={{ marginBottom: 16 }}>
+        <SelectRow icon="chartLine" title={t('Progression')} sheetTitle={t('Progression')}
+          value={r.prog || 'linear'} onChange={v => update(s => { s.routines.find(x => x.id === id).prog = v })}
+          options={POLICIES_FOR.reps.map(p => ({ value: p, label: t(POLICY_NAME[p]), subtitle: t(POLICY_DESC[p]) }))} />
+        {/* Two controls that read alike and are not (issue #294). Progression picks how this
+            routine's own targets move, and "No automatic progression" keeps them where they are.
+            This switch decides whether the routine's workouts count at all: a deload routine's
+            sessions open at its own numbers and are never the baseline the next regular session
+            progresses from (session-start.js, history.js entryExcluded). */}
+        <Row icon="chartLineSlash" iconTint="var(--orange)" title={t('Deload routine')}
+          subtitle={t('Its workouts do not count toward progression. They still show in history and statistics.')}>
+          <Switch checked={r.excludeFromProgression === true} onChange={v => update(s => {
+            const routine = s.routines.find(x => x.id === id)
+            if (v) routine.excludeFromProgression = true
+            else delete routine.excludeFromProgression
+          })} />
+        </Row>
+      </div>
+      <div className="small dim" style={{ margin: '-10px 2px 16px' }}>
+        {r.excludeFromProgression
+          ? t('A deload routine opens at the numbers set here, so the progression above does not apply to it.') + ' ' + t('The next regular target continues from the last included workout.')
+          : t(POLICY_DESC[r.prog || 'linear'] || POLICY_DESC.linear) + ' ' + t('Applies to every exercise in this routine that does not set its own rule.')}
+      </div>
+    </>}
 
     {missingCount > 0 && <div className="card" style={{ marginBottom: 16, borderColor: 'var(--orange)' }}>
       <div className="row" style={{ gap: 8, alignItems: 'center' }}>
@@ -530,14 +534,15 @@ export default function RoutineEdit() {
         }}>
           {/* Shown on pointer devices only (index.css .routine-grip); the Move buttons and the
               long press stay the way in for a keyboard and a finger. */}
-          <span className="routine-grip" data-drag-handle aria-hidden="true" title={t('Reorder exercises')}><Icon name="grip" /></span>
-          {ssPos.has(i) && <span className="ss-pos" aria-label={t('Superset position {0}', ssPos.get(i))}>{ssPos.get(i)}</span>}
+          {!LITE && <span className="routine-grip" data-drag-handle aria-hidden="true" title={t('Reorder exercises')}><Icon name="grip" /></span>}
+          {!LITE && ssPos.has(i) && <span className="ss-pos" aria-label={t('Superset position {0}', ssPos.get(i))}>{ssPos.get(i)}</span>}
           <Thumb ex={ex} />
           <button type="button" className="grow item-open" data-row-open><span className={`tt ${exerciseNameClass(ex)}`}>{exerciseNameFor(ex)}</span><span className="ss">{exLine(e, S.unit, speedUnitOf(S))}</span>
             {e.note && <span className="small dim" style={{ marginTop: 2 }}>{e.note}</span>}</button>
           {noEquip && <span className="tag" style={{ color: 'var(--orange)', borderColor: 'var(--orange)' }} title={t('Needs {0}, which isn’t in your active profile', t(ex.eq))}><Icon name="warning" /></span>}
+          {/* 精简模式保留上移/下移（顺序就是计划的一部分），superset 链接是上游功能。 */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 2, flex: 'none', alignItems: 'center' }}>
-            {i > 0 && <button className={'iconbtn' + (linkedPrev ? ' on-ss' : '')} title={t('Superset with exercise above')} style={{ width: 32, height: 28, borderRadius: 8, fontSize: 15 }} onClick={ev => { ev.stopPropagation(); toggleLink(i) }}><Icon name="link" /></button>}
+            {!LITE && i > 0 && <button className={'iconbtn' + (linkedPrev ? ' on-ss' : '')} title={t('Superset with exercise above')} style={{ width: 32, height: 28, borderRadius: 8, fontSize: 15 }} onClick={ev => { ev.stopPropagation(); toggleLink(i) }}><Icon name="link" /></button>}
             <div style={{ display: 'flex', gap: 2 }}>
               <button className="iconbtn" aria-label={t('Move up')} title={leavesUp ? t('Move out of the superset') : t('Move up')} disabled={!moveRoutineEntry(r.ex, i, -1)} style={{ width: 28, height: 24, borderRadius: 7, fontSize: 12 }} onClick={ev => { ev.stopPropagation(); move(i, -1) }}><Icon name="chevronUp" /></button>
               <button className="iconbtn" aria-label={t('Move down')} title={leavesDown ? t('Move out of the superset') : t('Move down')} disabled={!moveRoutineEntry(r.ex, i, 1)} style={{ width: 28, height: 24, borderRadius: 7, fontSize: 12 }} onClick={ev => { ev.stopPropagation(); move(i, 1) }}><Icon name="chevronDown" /></button>
@@ -547,7 +552,7 @@ export default function RoutineEdit() {
       return <div key={i} data-routine-row data-ex-index={i}
         className={'routine-drag-row' + (isDragging ? ' is-dragging' : '')}
         style={isDragging ? { transform: `translate3d(0, ${reorder.drag.deltaY}px, 0)` } : undefined}>
-        {unitFirst.has(i) && (() => {
+        {!LITE && unitFirst.has(i) && (() => {
           const meta = supersetMeta(r.ex, unitOf.get(i))
           return <button type="button" className="ss-label ss-label-btn" onClick={() => editSuperset(i)} title={t('Name and rest of this superset')}>
             <Icon name="link" /><span className="ss-label-name">{meta.name || t('Superset')}</span>
@@ -581,15 +586,17 @@ export default function RoutineEdit() {
       </div>
     })()}
 
-    <div className="small dim row" style={{ margin: '10px 2px', gap: 5 }}><Icon name="link" style={{ fontSize: 13 }} />{t('Tap the link button on an exercise to superset it with the one above. You’ll do them back-to-back.')}</div>
-    <Button onClick={() => {
-      const copy = copyRoutine(r, t('Copy'))
-      update(s => { s.routines.push(copy) })
-      nav('/plan/r/' + copy.id)
-    }}>{t('Copy routine')}</Button>
-    <div style={{ height: 10 }} />
-    <Button disabled={!r.ex.length} onClick={printRoutine}>{t('Print / Save as PDF')}</Button>
-    <div style={{ height: 10 }} />
+    {!LITE && <>
+      <div className="small dim row" style={{ margin: '10px 2px', gap: 5 }}><Icon name="link" style={{ fontSize: 13 }} />{t('Tap the link button on an exercise to superset it with the one above. You’ll do them back-to-back.')}</div>
+      <Button onClick={() => {
+        const copy = copyRoutine(r, t('Copy'))
+        update(s => { s.routines.push(copy) })
+        nav('/plan/r/' + copy.id)
+      }}>{t('Copy routine')}</Button>
+      <div style={{ height: 10 }} />
+      <Button disabled={!r.ex.length} onClick={printRoutine}>{t('Print / Save as PDF')}</Button>
+      <div style={{ height: 10 }} />
+    </>}
     <Button variant="danger" onClick={() => confirmSheet({
       title: t('Delete routine?'), message: t('“{0}” and its exercises will be removed.', r.name), confirmText: t('Delete'), danger: true,
       onConfirm: () => {

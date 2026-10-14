@@ -4,7 +4,7 @@ import { localTZ } from '../lib/format.js'
 import { t } from '../lib/i18n.js'
 import { registerCustom, healCustomEx } from '../lib/exercises.js'
 import { DEMO, DEMO_SEEDED } from '../lib/demo.js'
-import { rememberDefaultLang } from '../lib/default-lang.js'
+import { rememberDefaultLang, FALLBACK_LANG } from '../lib/default-lang.js'
 import { guestAllowed } from '../lib/guest.js'
 import { MOBILE, initReminderSync, nativeLoad, nativeSave, onAppActive, readJsonFile, syncReminder, writeAutoBackup, writeJsonFile } from '../lib/mobile.js'
 import { initHealthSync, syncHealth } from '../lib/health-sync.js'
@@ -24,6 +24,7 @@ import { loadCfAccess } from '../lib/cf-access.js'
 import { loadCoachDevice, saveCoachDevice, coachDeviceSettings } from '../lib/coach-device.js'
 import { RTL_LANGS } from '../lib/i18n-core.js'
 import { DEFAULT_TEMPLATE_ID } from '../lib/structuralBalanceTemplates.js'
+import { LITE } from '../lib/lite.js'
 
 import { WC_DEFAULT } from '../lib/workout-controls.js'
 import { sanitizeAccent } from '../lib/accent.js'
@@ -63,6 +64,8 @@ const LOGOUT_OWED_KEY = 'gym_logout_owed'
 // question was open). Kept in storage so an app killed with the question open asks it again on
 // the next start instead of pushing the copy it still holds.
 const ADOPT_KEY = 'gym_adopt'
+// 精简版 AI 教练的设备配置（base URL / 模型），与密钥分开存。
+const COACH_CFG_KEY = 'gym_coach_cfg'
 // Reads the mark with no argument, sets or clears it with one. Storage that cannot be read owes nothing.
 function logoutOwed(on) {
   try {
@@ -104,6 +107,9 @@ export const DEF = {
   // Settings/Plan through to the first routine being added — there's no queue yet to derive it from.
   scheduleMode: null,
   exWeights: {}, workouts: [], active: null, customEx: [], gifSize: 'full',
+  // 练记镜像 GIF 的用户自定图源（Settings → GIF 图源）。null = 沿用构建时的
+  // VITE_GIF_MIRROR_BASE；字符串 = 自建 base（'' 表示关闭镜像，回退到 CDN 的 MP4）。
+  gifMirrorBase: null,
   // Stats activity heatmap metric. Profiles without this key continue to open on time.
   heatmapMetric: 'time',
   // How the active workout is laid out — 'cards' (one exercise at a time with Prev/Next),
@@ -240,16 +246,16 @@ export const DEF = {
 }
 const clone = o => JSON.parse(JSON.stringify(o))
 
-// First run on a device whose language renders right-to-left starts in that language
-// rather than English; the boot script in index.html mirrors this check for the
-// pre-paint direction. The choice is persisted like any other setting once the user
-// picks a language.
+// First run on a device whose language renders right-to-left starts in that language rather
+// than the app's fallback; every other first run starts in FALLBACK_LANG (Simplified Chinese
+// in this fork). The boot script in index.html mirrors the RTL check for the pre-paint
+// direction. The choice is persisted like any other setting once the user picks a language.
 const detectedLang = () => {
   try {
     const base = (navigator.language || '').toLowerCase().split('-')[0]
     if (RTL_LANGS.has(base)) return base
   } catch (e) { /* ignore */ }
-  return 'en'
+  return FALLBACK_LANG
 }
 
 // A copy started from nothing on this device. `langAuto` marks its language as one nobody has
@@ -1317,6 +1323,20 @@ export const useStore = create((set, get) => {
     async setCoachLocal(patch) {
       set({ coachLocal: coachDeviceSettings(await saveCoachDevice(patch)) })
     },
+    // 精简版(Lite) AI 教练的本机配置：{ preset, base, model, daily: { d, n } }。
+    // 密钥不放这里 —— 它在系统安全存储里（lib/coach-secrets.js），不进 S、不进备份。
+    // 这是一台设备对哪家模型服务的配置，和 doctorSeen 一类本机事实同放 localStorage；
+    // 没有它，用户重启应用就得重新填一次 base URL。
+    coachCfg: null,
+    setCoachCfg(next) {
+      const cur = get().coachCfg
+      const merged = next == null ? null : { preset: null, base: '', model: '', daily: null, ...(cur || {}), ...next }
+      try {
+        if (merged) localStorage.setItem(COACH_CFG_KEY, JSON.stringify(merged))
+        else localStorage.removeItem(COACH_CFG_KEY)
+      } catch { /* 存不下就只留内存，本次会话仍然可用 */ }
+      set({ coachCfg: merged })
+    },
 
     // Mutate a draft of S via producer fn, then persist + schedule sync. Every routine the change
     // touched carries the time of it, for a conflict to keep the version edited last.
@@ -1474,7 +1494,9 @@ export const useStore = create((set, get) => {
       if (MOBILE && S.autoBackup) writeAutoBackup(S)
     },
 
-    isGuest: () => localStorage.getItem('gym_guest') === '1',
+    // 精简模式 is local-only: there is no account to sign into, so every surface that
+    // distinguishes a guest from a signed-in profile treats this build as a guest.
+    isGuest: () => LITE || localStorage.getItem('gym_guest') === '1',
     // Choosing to go on without a server ends whatever was said about the last one.
     setGuest(v) {
       if (v) localStorage.setItem('gym_guest', '1'); else localStorage.removeItem('gym_guest')
@@ -1835,6 +1857,18 @@ export const useStore = create((set, get) => {
 
     // Boot: ask the server who we are, then pull.
     async boot() {
+      // 精简模式 has no server side: start on the local copy without asking for an account.
+      // The full app keeps its /api/config, /api/me and sync boot below untouched.
+      if (LITE) {
+        get().setGuest(true)
+        // 精简版 AI 教练的设备配置：没有它，重启后 base URL 和模型名都要重填。
+        try {
+          const raw = localStorage.getItem(COACH_CFG_KEY)
+          if (raw) set({ coachCfg: JSON.parse(raw) })
+        } catch { /* 坏了就当没配过 */ }
+        finishBoot()
+        return
+      }
       // Mobile build: no backend by default — restore from the file mirror (the durable copy;
       // localStorage may have been evicted since the last run) and go straight in. Unless this
       // device was paired to a server ("connect to my server" mode, lib/remote.js), in which

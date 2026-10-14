@@ -3,9 +3,9 @@
 <plist version="1.0">
 <dict>
 	<key>CFBundleDevelopmentRegion</key>
-	<string>en</string>
+	<string>zh_CN</string>
 	<key>CFBundleDisplayName</key>
-        <string>openGym</string>
+	<string>轻练</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -62,9 +62,5 @@
 	</array>
 	<key>UIViewControllerBasedStatusBarAppearance</key>
 	<true/>
-	<key>NSCameraUsageDescription</key>
-	<string>Used to scan your gym membership QR code, and to take a photo or video of an exercise you add yourself.</string>
-	<key>NSMicrophoneUsageDescription</key>
-	<string>Used to record the sound of a video you take of an exercise you add yourself.</string>
 </dict>
 </plist>

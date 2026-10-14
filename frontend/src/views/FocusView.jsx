@@ -15,6 +15,7 @@ import {
 } from '../lib/workout-model.js'
 import { weightIncrement, stepWeight } from '../lib/progression.js'
 import { speedUnitOf, toSpeed, fromSpeed } from '../lib/speed.js'
+import { LITE } from '../lib/lite.js'
 import { effortPickerSheet, exerciseDetailSheet, exerciseHistorySheet, exerciseNoteSheet, menuSheet, barWeightSheet } from '../sheets.jsx'
 import { baseWeightFor, inventoryFor, loadKindFor, rowLoad } from '../lib/plates.js'
 import { ownedWeightsFor, stepOwned } from '../lib/dumbbells.js'
@@ -70,11 +71,11 @@ function Prescription({ entry, setIdx, unit, fallbackRest, children }) {
   const load = target.weight > 0
     ? `@ ${fmtNum(target.weight)}${target.weightMax > target.weight ? `–${fmtNum(target.weightMax)}` : ''} ${unit}`
     : ''
-  const rpe = target.rpeMin > 0
+  const rpe = !LITE && target.rpeMin > 0
     ? `RPE ${fmtNum(target.rpeMin)}${target.rpeMax > target.rpeMin ? `–${fmtNum(target.rpeMax)}` : ''}`
     : ''
-  const rest = target.restSec > 0 ? `Rest ${target.restSec}s` : fallbackRest > 0 ? `Rest ${fallbackRest}s` : ''
-  const badges = [reps && `${reps} Reps`, load, rpe, rest, target.tempo].filter(Boolean)
+  const rest = target.restSec > 0 ? `${t('Rest')} ${target.restSec}s` : fallbackRest > 0 ? `${t('Rest')} ${fallbackRest}s` : ''
+  const badges = [reps && `${reps} ${t('Reps')}`, load, rpe, rest, !LITE && target.tempo].filter(Boolean)
 
   return <div className="focus-prescription">
     <span className="focus-badge focus-progress">{setIdx + 1}/{entry.sets.length}</span>
@@ -129,7 +130,8 @@ export default function FocusView({
   const locked = !set.done && setIdx > firstOpenSet
   const readOnly = set.done || locked
   const mode = modeOf({ ...(entry.target || {}), id: entry.id })
-  const effort = effortOf(S)
+  // 精简模式: weight and reps only (lib/lite.js) — the fork has no RIR/RPE column.
+  const effort = LITE ? 'none' : effortOf(S)
   const effortField = EFFORT[effort]?.f
   const effortValue = effortField ? set[effortField] ?? null : null
   const effortTint = effortValue == null ? null : effortColor(rirOf({ [effortField]: effortValue }))
@@ -181,7 +183,7 @@ export default function FocusView({
         onChange={value => change('w', value)} />
       <Stepper label={t('Reps')} ariaLabel="reps" value={sideSet.r || 0} step={1} decimal={false} disabled={readOnly || sideSet.done}
         onChange={value => change('r', value)} />
-      <div className="focus-extras">
+      {!LITE && <div className="focus-extras">
         {sideDrops.map((drop, index) => <div className="focus-extra" key={`drop-${index}`}>
           <span>{t('Drop {0}', index + 1)}</span>
           <Stepper label={t('Load')} ariaLabel="load" value={drop.w || 0} step={loadStep} onStep={stepLoad} disabled={readOnly || sideSet.done}
@@ -195,7 +197,7 @@ export default function FocusView({
             onChange={value => onMutateSet(setIdx, row => setSideClusterAt(row, side, index, value))} />
           <span className="dim small">{burst.restSec}s</span>
         </div>)}
-      </div>
+      </div>}
     </section>
   }
 
@@ -225,11 +227,15 @@ export default function FocusView({
       { icon: 'pencil', label: entry.note ? t('Edit note') : t('Add note'), onClick: () => exerciseNoteSheet(entryIdx) },
       { icon: 'info', label: t('Details'), onClick: () => exerciseDetailSheet(exOr(entry.id)) },
       { icon: 'history', label: t('History'), onClick: () => exerciseHistorySheet(entry.id) },
-      { icon: 'chartLine', label: t('Progression settings'), onClick: onProgressionSettings },
-      onNoProg && { icon: 'pause', label: t('Don’t count for progression'), sub: t('This exercise, this session only'), on: entry.noProg === true, onClick: () => onNoProg(entry.noProg !== true) },
-      mode === 'reps' && { icon: 'plate', label: t('Plate loading'), onClick: () => barWeightSheet(entry.id, { ...(entry.target || {}), id: entry.id }) },
-      onPairPrev && { icon: 'link', label: t('Make superset with previous'), onClick: onPairPrev },
-      onPairNext && { icon: 'link', label: t('Make superset with next'), onClick: onPairNext },
+      // 精简模式: no progression rule is surfaced, so its editor and opt-out go with it
+      // (lib/lite.js).
+      !LITE && { icon: 'chartLine', label: t('Progression settings'), onClick: onProgressionSettings },
+      !LITE && onNoProg && { icon: 'pause', label: t('Don’t count for progression'), sub: t('This exercise, this session only'), on: entry.noProg === true, onClick: () => onNoProg(entry.noProg !== true) },
+      // 精简模式: no plate math and no superset pairing (lib/lite.js); the menu is the plain
+      // log/edit one.
+      !LITE && mode === 'reps' && { icon: 'plate', label: t('Plate loading'), onClick: () => barWeightSheet(entry.id, { ...(entry.target || {}), id: entry.id }) },
+      !LITE && onPairPrev && { icon: 'link', label: t('Make superset with previous'), onClick: onPairPrev },
+      !LITE && onPairNext && { icon: 'link', label: t('Make superset with next'), onClick: onPairNext },
       { icon: 'shuffle', label: t('Swap exercise'), onClick: onSwap, disabled: busy },
       { icon: 'trash', label: t('Remove exercise'), onClick: onRemoveExercise, danger: true, disabled: busy },
     ],
@@ -238,10 +244,13 @@ export default function FocusView({
   const openSetMenu = () => menuSheet({
     title: t('Set {0}', setIdx + 1),
     items: [
-      { icon: 'flame', label: isWarmupRow(set) ? t('Mark as work set') : t('Mark as warm-up'), onClick: () => onMutateSet(setIdx, toggleWarmup) },
-      { icon: 'arrowDown', label: t('Add drop set'), onClick: () => onMutateSet(setIdx, row => addDropTo(row, entry.target)) },
-      { icon: 'bolt', label: t('Add burst'), onClick: () => onMutateSet(setIdx, row => addBurstTo(row, entry.target?.intensifier?.type === 'restpause' ? entry.target.intensifier.restSec : (S.restPauseSec || 15))) },
-      !isWarmupRow(set) && mode !== 'cardio' && { icon: 'gauge', label: t('Taken to failure'), sub: t('Nothing left in the tank'), on: isFailureSet(set), onClick: () => onMutateSet(setIdx, toggleFailure) },
+      // 精简模式: sets are working sets, and no failure flag (lib/lite.js).
+      !LITE && { icon: 'flame', label: isWarmupRow(set) ? t('Mark as work set') : t('Mark as warm-up'), onClick: () => onMutateSet(setIdx, toggleWarmup) },
+      // 精简模式 leaves the drop-set / burst shortcuts out, so the set menu is the plain
+      // log-and-check one (lib/lite.js).
+      !LITE && { icon: 'arrowDown', label: t('Add drop set'), onClick: () => onMutateSet(setIdx, row => addDropTo(row, entry.target)) },
+      !LITE && { icon: 'bolt', label: t('Add burst'), onClick: () => onMutateSet(setIdx, row => addBurstTo(row, entry.target?.intensifier?.type === 'restpause' ? entry.target.intensifier.restSec : (S.restPauseSec || 15))) },
+      !LITE && !isWarmupRow(set) && mode !== 'cardio' && { icon: 'gauge', label: t('Taken to failure'), sub: t('Nothing left in the tank'), on: isFailureSet(set), onClick: () => onMutateSet(setIdx, toggleFailure) },
       { icon: 'trash', label: t('Delete set'), danger: true, disabled: entry.sets.length <= 1, onClick: () => onRemoveSetAt(setIdx) },
     ],
   })
@@ -261,8 +270,8 @@ export default function FocusView({
       <header className="focus-card-header">
         <h2>{exerciseNameFor(ex)}</h2>
         <button className="iconbtn" aria-label={t('Details')} onClick={() => exerciseDetailSheet(ex)}><Icon name="info" /></button>
-        {isWarmupRow(set) && <span className="focus-warmup" aria-label={t('Warm-up')}>🔥</span>}
-        {isFailureSet(set) && <span className="focus-failure" role="img" aria-label={t('Taken to failure')}>{t('F')}</span>}
+        {!LITE && isWarmupRow(set) && <span className="focus-warmup" aria-label={t('Warm-up')}>🔥</span>}
+        {!LITE && isFailureSet(set) && <span className="focus-failure" role="img" aria-label={t('Taken to failure')}>{t('F')}</span>}
         <button className="iconbtn" aria-label={t('More')} onClick={openExerciseMenu}><Icon name="more" /></button>
       </header>
 
@@ -277,12 +286,13 @@ export default function FocusView({
         {pinnedNote && <div className="focus-note pinned"><Icon name="flag" />{t('From {0}:', fmtDate(pinnedNote.d, true))} {pinnedNote.note}</div>}
         {entry.note && <div className="focus-note">{entry.note}</div>}
         {last && <div className="focus-last">{t('Last time')} · {fmtDate(last.d)}</div>}
-        {guidance && <button className="focus-guidance" onClick={onProgressionSettings}><Icon name="lightbulb" />{t(guidance.policyLabel)}</button>}
+        {/* 精简模式: the progression hint is upstream's (lib/lite.js). */}
+        {!LITE && guidance && <button className="focus-guidance" onClick={onProgressionSettings}><Icon name="lightbulb" />{t(guidance.policyLabel)}</button>}
       </div>
       <Prescription entry={entry} setIdx={setIdx} unit={S.unit} fallbackRest={S.restSec}>
         <PlanBadge entry={entry} mode={mode} />
-        <PlateBadge S={S} entry={entry} set={set} />
-        {entry.noProg === true && <span className="focus-badge warning"><Icon name="pause" />{t('Not counted for progression')}{onNoProg && <button type="button" className="focus-badge-action" onClick={() => onNoProg(false)}>{t('Undo')}</button>}</span>}
+        {!LITE && <PlateBadge S={S} entry={entry} set={set} />}
+        {!LITE && entry.noProg === true && <span className="focus-badge warning"><Icon name="pause" />{t('Not counted for progression')}{onNoProg && <button type="button" className="focus-badge-action" onClick={() => onNoProg(false)}>{t('Undo')}</button>}</span>}
       </Prescription>
       {locked && <p className="focus-lock-note" role="status">{t('Complete set {0} to edit this one.', firstOpenSet + 1)}</p>}
 
@@ -308,7 +318,7 @@ export default function FocusView({
           </div> : <Stepper label={t('Reps')} ariaLabel="reps" value={set.r || 0} step={1} decimal={false} disabled={readOnly}
             onChange={value => onField(setIdx, 'r', value)} />}</>}
         </>}
-        <div className="focus-extras">
+        {!LITE && <div className="focus-extras">
           {drops.map((drop, index) => <div className="focus-extra" key={`drop-${index}`}>
             <span>{t('Drop {0}', index + 1)}</span>
             <Stepper label={t('Load')} ariaLabel="load" value={drop.w || 0} step={loadStep} onStep={stepLoad} disabled={readOnly}
@@ -325,7 +335,7 @@ export default function FocusView({
               })} />
             <span className="dim small">{burst.restSec}s</span>
           </div>)}
-        </div>
+        </div>}
         {mode === 'reps' && effortField && <button className={'effcell focus-effort' + (effortValue == null ? ' is-empty' : '')}
           style={effortTint ? { color: effortTint, borderColor: effortTint, background: `color-mix(in srgb, ${effortTint} 20%, var(--surface-2))` } : undefined}
           aria-label={t(EFFORT[effort].hd)} disabled={readOnly} onClick={openEffort}>{effortValue == null ? t(EFFORT[effort].hd) : fmtNum(effortValue)}</button>}

@@ -4,23 +4,37 @@
 // subscription hook `useLang`.
 
 import { useSyncExternalStore } from 'react'
+import { LITE } from './lite.js'
+import { chineseExerciseNames } from './zh-lite-names.js'
 import {
   LANGS, INSTR_LANGS, EXERCISE_NAME_LANGS, DATE_LOCALES, DERIVED_LOCALES, RTL_LANGS,
   getLang, dateLocale, t, tn, instrFor, exerciseNameFor, exerciseNameSearchText, getVersion,
-  baseLang, derivePack, _setLangState, exerciseNameClass, descFor, instrTranslated, _setDetailsLoader, _setDetails, _detailsFailed
+  baseLang, derivePack, _setLangState, exerciseNameClass, defaultExerciseNameParens, descFor, instrTranslated, _setDetailsLoader, _setDetails, _detailsFailed
 } from './i18n-core.js'
 
 export {
   LANGS, INSTR_LANGS, EXERCISE_NAME_LANGS, DATE_LOCALES, DERIVED_LOCALES, RTL_LANGS,
-  getLang, dateLocale, t, tn, instrFor, instrTranslated, descFor, exerciseNameFor, exerciseNameSearchText, exerciseNameClass, baseLang
+  getLang, dateLocale, t, tn, instrFor, instrTranslated, descFor, exerciseNameFor, exerciseNameSearchText, exerciseNameClass, defaultExerciseNameParens, baseLang
 }
 
 // Vite code-splits locale, instruction and exercise-name packs via import.meta.glob. They are
 // lazy, so the production bundle ships English only until another language is selected.
-const localePacks = import.meta.glob('../locales/*.js')
-const instrPacks = import.meta.glob('../instr/*.js')
-const exerciseNamePacks = import.meta.glob('../exercise-names/*.js')
-const descPacks = import.meta.glob('../exercise-desc/*.js')
+//
+// 精简模式 is Chinese-only (lib/lite.js). The globs sit behind a build-time constant so the
+// lite build never expands them: only the three zh packs below are emitted, not the other 17
+// locales. `import.meta.env.VITE_LITE` is substituted literally by Vite, which lets the
+// dead branch — and every `import()` inside it — drop out of the lite bundle entirely.
+const LITE_BUILD = import.meta.env.VITE_LITE === '1'
+const localePacks = LITE_BUILD ? {} : import.meta.glob('../locales/*.js')
+const instrPacks = LITE_BUILD ? {} : import.meta.glob('../instr/*.js')
+const exerciseNamePacks = LITE_BUILD ? {} : import.meta.glob('../exercise-names/*.js')
+const descPacks = LITE_BUILD ? {} : import.meta.glob('../exercise-desc/*.js')
+
+// The only packs a lite build ships. Both are trimmed to the Lite exercise whitelist
+// (work/lite-whitelist.json) so the Chinese name/instruction packs shrink with the dataset.
+const liteLocale = () => import('../locales/zh.js')
+const liteInstr = () => import('../instr/zh.lite.js')
+const liteExerciseNames = () => import('../exercise-names/zh.lite.js')
 
 // English steps and descriptions, plus the language's own descriptions where it has some: fetched
 // the first time any screen asks for an exercise's details (i18n-core askDetails), and again for
@@ -30,6 +44,18 @@ async function loadDetails() {
   const l = getLang()
   const base = baseLang(l)
   const load = async (packs, key) => { try { return packs[key] ? (await packs[key]()).default : null } catch (e) { return null } }
+  if (LITE) {
+    let instrZh = null
+    try { instrZh = (await liteInstr()).default } catch (e) { /* ignore */ }
+    // The lite fork has no Chinese description pack. An empty pack keeps core from retrying
+    // the English detail chunks; legacy/custom descriptions can still fall back to ex.desc.
+    const current = _setDetails(instrZh, {}, null, l)
+    if (instrZh) detailsLoaded = true
+    if (!instrZh) _detailsFailed()
+    notify()
+    if (!current) return loadDetails()
+    return
+  }
   const [en, enDesc, desc] = await Promise.all([
     load(instrPacks, '../instr/en.js'),
     load(descPacks, '../exercise-desc/en.js'),
@@ -53,7 +79,11 @@ let lastShowEn = undefined
 let lastEnOnly = undefined
 
 export async function setLang(l, showEn, enOnly) {
-  if (!LANGS[l]) l = 'en'
+  if (LITE) {
+    l = 'zh'
+    showEn = false
+    enOnly = false
+  } else if (!LANGS[l]) l = 'en'
   const show = showEn !== false
   const only = enOnly === true
   // Both display switches participate in the early-exit, so toggling the parens or the
@@ -66,12 +96,21 @@ export async function setLang(l, showEn, enOnly) {
   lastEnOnly = only
   const base = baseLang(l)
   let dict = {}, instr = null, exerciseNames = null
-  try { dict = base === 'en' ? {} : (await localePacks['../locales/' + base + '.js']()).default } catch (e) { dict = {} }
-  try { instr = base === 'en' || !INSTR_LANGS.includes(base) ? null : (await instrPacks['../instr/' + base + '.js']()).default } catch (e) { instr = null }
   try {
-    exerciseNames = base === 'en' || !EXERCISE_NAME_LANGS.includes(base)
-      ? null
-      : (await exerciseNamePacks['../exercise-names/' + base + '.js']()).default
+    const pack = LITE ? await liteLocale() : (base === 'en' ? null : await localePacks['../locales/' + base + '.js']())
+    dict = pack ? pack.default : {}
+  } catch (e) { dict = {} }
+  try {
+    if (LITE) instr = (await liteInstr()).default
+    else instr = base === 'en' || !INSTR_LANGS.includes(base) ? null : (await instrPacks['../instr/' + base + '.js']()).default
+  } catch (e) { instr = null }
+  try {
+    if (LITE) exerciseNames = chineseExerciseNames((await liteExerciseNames()).default)
+    else {
+      exerciseNames = base === 'en' || !EXERCISE_NAME_LANGS.includes(base)
+        ? null
+        : (await exerciseNamePacks['../exercise-names/' + base + '.js']()).default
+    }
   } catch (e) { exerciseNames = null }
   _setLangState(l, derivePack(l, dict), derivePack(l, instr), derivePack(l, exerciseNames), show, only)
   if (detailsLoaded) loadDetails()

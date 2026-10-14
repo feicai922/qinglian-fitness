@@ -19,7 +19,7 @@ import { queueOf } from '../lib/queue.js'
 import { api, webauthnOK, passkeyRegister, passkeyError, IS_ANDROID } from '../lib/api.js'
 import { pushSupported, enablePush, disablePush, sendTestPush, syncPushSubscription } from '../lib/push.js'
 import { wakeLockSupported } from '../lib/wakelock.js'
-import { t, tn, LANGS, INSTR_LANGS, EXERCISE_NAME_LANGS, baseLang, dateLocale } from '../lib/i18n.js'
+import { t, tn, LANGS, INSTR_LANGS, EXERCISE_NAME_LANGS, baseLang, defaultExerciseNameParens, dateLocale } from '../lib/i18n.js'
 import { effectiveLang } from '../lib/default-lang.js'
 import { DEMO, REPO } from '../lib/demo.js'
 import { MOBILE, isAndroid, shareExport, shareExportBlob, syncReminder } from '../lib/mobile.js'
@@ -43,7 +43,8 @@ import { ServerSyncSection, KeptChangesRows, leaveServer, connectServer, passkey
 import { passwordOn, PasswordRow, openPasswordSignIn, openPasswordRegister } from '../components/PasswordAuth.jsx'
 import { usePasskeys, PasskeysRow, DeviceLinkRow, openDeviceLinkRedeem } from '../components/Passkeys.jsx'
 import { Section, Row, SelectRow, Switch, Segmented, Button, TextField, SearchField } from '../components/ui.jsx'
-import { PAGES, ROOT_GROUPS, pageVisible, searchSettings, pageTrail } from './settings-pages.js'
+import { LITE_HIDDEN, PAGES, ROOT_GROUPS, pageVisible, searchSettings, pageTrail } from './settings-pages.js'
+import { LITE } from '../lib/lite.js'
 
 /* Settings (v1.3.11). The root is one screen: an account card, eleven rows that each open a page
    (/settings/<page>), and a search over every row. Rare things live one level further down
@@ -63,6 +64,7 @@ export function SettingsRoute() {
   const { page } = useParams()
   const loc = useLocation()
   const ctx = { user: useStore(s => s.user), mobile: MOBILE }
+  if (LITE && page && LITE_HIDDEN.includes(page)) return <Navigate to="/settings" replace />
   if (page && (!PAGES[page] || !pageVisible(PAGES[page].parent || page, ctx))) return <Navigate to="/settings" replace />
   if (page === 'coach') return <Navigate to="/coach/setup" replace />
   return <Settings key={page || 'root'} page={page || null} find={loc.state?.find || null} via={loc.state?.via || null} />
@@ -77,6 +79,10 @@ const shortWeekday = day => {
 const standalone = () => {
   try { return !!(window.matchMedia?.('(display-mode: standalone)').matches || window.navigator.standalone === true) } catch { return false }
 }
+
+// Lite is Chinese-only, so the two weight labels stay Chinese instead of showing the stored
+// identifiers. The values themselves never change: only what the row prints.
+const weightUnitLabel = unit => LITE ? (unit === 'lb' ? '磅' : '公斤') : unit
 
 export default function Settings({ page = null, find = null, via = null }) {
   const nav = useNavigate()
@@ -407,7 +413,7 @@ export default function Settings({ page = null, find = null, via = null }) {
     alerts: () => [S.sound ? t('Sound') : null, canVibrate && S.vibrate !== false ? t('Vibrate') : null, S.timerFlash ? t('Flash') : null].filter(Boolean).join(' · ') || t('Silent'),
     reminders: () => (S.reminder?.on ? (S.reminder.time || DEF.reminder?.time || '') : t('Off')),
     plan: () => (mode === 'rotation' ? t('Rotation') : t('Fixed Week')) + ' · ' + shortWeekday(weekStartOf(S) === SUNDAY ? 0 : 1),
-    units: () => (S.unit || 'kg') + ' · ' + (LANGS[lang] || lang),
+    units: () => LITE ? weightUnitLabel(S.unit || 'kg') : (S.unit || 'kg') + ' · ' + (LANGS[lang] || lang),
     equipment: () => (S.equipFilterOn && activeProfile ? activeProfile.name : t('Everything')),
     look: () => themeLabel + ' · ' + accentLabel(S),
     coach: () => (coachLocal?.mode === 'server' ? t('Your server') : coachLocal?.mode === 'byok' ? t('Your API key') : t('Off')),
@@ -449,17 +455,19 @@ export default function Settings({ page = null, find = null, via = null }) {
     workout: () => <>
       <Section title={t('Rest')} footer={t('Each exercise can have its own rest too. Set it in the exercise settings of a routine.')}>
         {restRow}
-        {restPauseRow}
+        {!LITE && restPauseRow}
       </Section>
       <Section title={t('Logging')}>
         {/* Two names for the same judgement, so the column asks in the scale you already think in.
             The (i) sits before the control: you read it on the way to the choice, not after it. */}
-        <Row icon="gauge" iconTint="var(--purple)" title={t('Effort per set')}>
+        {/* 精简模式: the fork logs weight and reps, not RIR/RPE (lib/lite.js). The rows hold no
+            rating, so the workout screen has no effort column to fill. */}
+        {!LITE && <Row icon="gauge" iconTint="var(--purple)" title={t('Effort per set')}>
           <button className="helpbtn" aria-label={t('What are RIR and RPE?')} onClick={effortHelpSheet}><Icon name="info" /></button>
           <Segmented className="seg-inline"
             options={[{ value: 'none', label: t('Off') }, { value: 'rir', label: t('RIR') }, { value: 'rpe', label: t('RPE') }]}
             value={effortOf(S)} onChange={v => update(s => { s.effort = v; delete s.showRir })} />
-        </Row>
+        </Row>}
         {/* The line under each exercise that the rows are held against (#173). Tapping the line in
             a workout switches it too; this is where the choice can be found without knowing that. */}
         <SelectRow icon="history" iconTint="var(--blue)" title={t('Shown under each exercise')}
@@ -509,9 +517,9 @@ export default function Settings({ page = null, find = null, via = null }) {
             onChange={v => update(s => { s.gifSize = v })} />
         </Row>
       </Section>
-      <Section>
+      {!LITE && <Section>
         <Row icon="wrench" iconTint="var(--grey)" title={t('Fine-tuning')} subtitle={t('Buttons, timed sets')} accessory="chevron" onClick={() => open('advanced')} />
-      </Section>
+      </Section>}
     </>,
 
     advanced: () => {
@@ -619,7 +627,7 @@ export default function Settings({ page = null, find = null, via = null }) {
     plan: () => <>
       <Section>
         {/* Fixed Week (S.week) or Rotation (the live queue, lib/queue.js + lib/rotation.js).
-            Derived from the queue, never stored. */}
+            Derived from the queue, never stored. 精简模式保留这个开关：它是循环排期的入口。 */}
         <Row icon="repeat" iconTint="var(--orange)" title={t('How you train')}>
           {externalQ
             ? <span className="small dim">{t('Rotation')} · {t('Externally managed')}</span>
@@ -644,7 +652,9 @@ export default function Settings({ page = null, find = null, via = null }) {
     </>,
 
     units: () => <>
-      <Section>
+      {/* 精简模式: this fork trains in Chinese — the language picker and the two "English names"
+          switches are upstream's (lib/lite.js, lib/default-lang.js). */}
+      {!LITE && <Section>
         <SelectRow
           icon="globe" iconTint="var(--blue)" title={t('Language')}
           value={lang} onChange={v => update(s => { s.lang = v; s.langAuto = false })}
@@ -656,7 +666,7 @@ export default function Settings({ page = null, find = null, via = null }) {
         {ctx.nameLang && <>
           <Row icon="globe" iconTint="var(--purple)" title={t('English exercise names')}
             subtitle={t('Show the English name in parentheses next to the translated one.')}>
-            <Switch checked={S.enParens?.[baseLang(lang)] ?? true}
+            <Switch checked={S.enParens?.[baseLang(lang)] ?? defaultExerciseNameParens(lang)}
               disabled={S.enOnly?.[baseLang(lang)] === true}
               onChange={v => update(s => { s.enParens = { ...(s.enParens || {}), [baseLang(lang)]: v } })} />
           </Row>
@@ -666,11 +676,11 @@ export default function Settings({ page = null, find = null, via = null }) {
               onChange={v => update(s => { s.enOnly = { ...(s.enOnly || {}), [baseLang(lang)]: v } })} />
           </Row>
         </>}
-      </Section>
+      </Section>}
       <Section footer={t('Switching the unit offers to convert every stored weight.')}>
         <Row icon="scale" iconTint="var(--teal)" title={t('Weight unit')}>
           <Segmented className="seg-inline"
-            options={[{ value: 'kg', label: 'kg' }, { value: 'lb', label: 'lb' }]}
+            options={[{ value: 'kg', label: weightUnitLabel('kg') }, { value: 'lb', label: weightUnitLabel('lb') }]}
             value={S.unit} onChange={v => switchUnit(v)} />
         </Row>
         {/* Display only: one decimal reads fine for plate-loadable numbers, two for anyone whose
@@ -683,15 +693,17 @@ export default function Settings({ page = null, find = null, via = null }) {
         </Row>
         {/* Cardio speed (Discord "miles per hour"). Unlike the weight unit this converts nothing:
             speeds stay stored in km/h and only what is shown and typed follows it (lib/speed.js).
-            Until chosen it follows the weight unit, so a profile in pounds already reads mph. */}
-        <Row icon="figureRun" iconTint="var(--teal)" title={t('Speed unit')}>
+            Until chosen it follows the weight unit, so a profile in pounds already reads mph.
+            精简模式 keeps the unit card to weight (lib/lite.js). */}
+        {!LITE && <Row icon="figureRun" iconTint="var(--teal)" title={t('Speed unit')}>
           <Segmented className="seg-inline"
             options={[{ value: 'kmh', label: 'km/h' }, { value: 'mph', label: 'mph' }]}
             value={speedUnitOf(S)} onChange={v => update(s => { s.speedUnit = v })} />
-        </Row>
+        </Row>}
         {/* Which formula turns a set into an estimated 1RM (Discord, #155): the exercise page,
-            the 1RM chart and records all follow it. Formula names are people, not words. */}
-        <SelectRow icon="chart" iconTint="var(--teal)" title={t('1RM formula')}
+            the 1RM chart and records all follow it. Formula names are people, not words.
+            精简模式 leaves the formula picker on its default (lib/lite.js). */}
+        {!LITE && <SelectRow icon="chart" iconTint="var(--teal)" title={t('1RM formula')}
           value={formulaOf(S)} onChange={v => update(s => { s.oneRmFormula = v })}
           options={[
             { value: 'epley', label: 'Epley', subtitle: t('The common one. A bit generous at higher reps.') },
@@ -702,11 +714,13 @@ export default function Settings({ page = null, find = null, via = null }) {
             { value: 'wathan', label: 'Wathan' },
             { value: 'lander', label: 'Lander' },
             { value: 'weighted', label: t('Blend of all'), subtitle: t('Averages seven formulas and reads your RIR when you log it.') },
-          ]} />
+          ]} />}
       </Section>
     </>,
 
-    equipment: () => <EquipmentCard S={S} update={update} />,
+    // 精简模式: the equipment profiles, plates and dumbbell rack are upstream's. In the lite
+    // build the library shows every exercise (views/Library.jsx) and the page has no row.
+    equipment: () => LITE ? null : <EquipmentCard S={S} update={update} />,
 
     look: () => <>
       <Section footer={DEMO || MOBILE || !user ? undefined : t('synced with your profile')}>
@@ -729,18 +743,18 @@ export default function Settings({ page = null, find = null, via = null }) {
           <AccentSwatches S={S} update={update} />
         </div>
         {/* How the muscle map is drawn. The exercise drawings follow it until they are set below. */}
-        <Row icon="figureStrength" iconTint="var(--teal)" title={t('Body diagram')}>
+        {!LITE && <Row icon="figureStrength" iconTint="var(--teal)" title={t('Body diagram')}>
           <Segmented
             className="seg-inline"
             options={[{ value: 'male', label: t('Male') }, { value: 'female', label: t('Female') }]}
             value={S.body === 'female' ? 'female' : 'male'}
             onChange={v => update(s => { s.body = v })}
           />
-        </Row>
+        </Row>}
         {/* Which figure the exercise animations show where both exist (about 940 exercises; the
             rest are drawn once). Only the picture changes: the exercise and its id stay the same,
             so nothing logged is touched, on this device or any other. */}
-        <Row icon="figureStrength" iconTint="var(--teal)" title={t('Exercise drawings')}
+        {!LITE && <Row icon="figureStrength" iconTint="var(--teal)" title={t('Exercise drawings')}
           subtitle={t('Where an exercise is drawn on both figures. Your workouts stay exactly as they are.')}>
           <Segmented
             className="seg-inline"
@@ -748,14 +762,15 @@ export default function Settings({ page = null, find = null, via = null }) {
             value={figureOf(S)}
             onChange={v => update(s => { s.exFigure = v })}
           />
-        </Row>
+        </Row>}
       </Section>
       <Section title={t('On Home')}>
-        {/* Membership QR codes on Home (views/CheckIn.jsx); off = no Home card, no route. */}
-        <Row icon="qr" iconTint="var(--blue)" title={t('Gym check-in')}
+        {/* Membership QR codes on Home (views/CheckIn.jsx); off = no Home card, no route.
+            精简模式 takes the card and the route away entirely (lib/lite.js). */}
+        {!LITE && <Row icon="qr" iconTint="var(--blue)" title={t('Gym check-in')}
           subtitle={t('Show a card on Home with your membership QR codes.')}>
           <Switch checked={S.checkIn !== false} onChange={v => update(s => { s.checkIn = v })} />
-        </Row>
+        </Row>}
         {/* The Home summary is optional; hiding it leaves weight logging, history and Stats intact. */}
         <Row icon="scale" iconTint="var(--green)" title={t('Body weight')}
           subtitle={t('Show the body weight card on Home.')}>
@@ -764,7 +779,7 @@ export default function Settings({ page = null, find = null, via = null }) {
         {/* The bar at the top that says the app is offline, kept local, or not synced (#369, #330).
             Here and not under Server & sync, which a phone kept local never shows. Switching it on
             also brings back the no-server line its × hid (#454). */}
-        {!DEMO && <Row icon="cloud" iconTint="var(--blue)" title={t('Show connection status')}
+        {!LITE && !DEMO && <Row icon="cloud" iconTint="var(--blue)" title={t('Show connection status')}
           subtitle={t('Off: the bar at the top is hidden. A dot on Home still warns when syncing is stuck.')}>
           <Switch checked={S.connStatus !== false} onChange={v => update(s => { s.connStatus = v; if (v) s.connLocal = true })} />
         </Row>}
@@ -773,8 +788,9 @@ export default function Settings({ page = null, find = null, via = null }) {
 
     data: () => <>
       <Section title={t('Back up')}>
-        <Row icon="share" iconTint="var(--blue)" title={t('Export backup (JSON)')} subtitle={hasMedia ? t('Without photos and videos') : undefined} accessory="chevron" onClick={doExport} />
-        {hasMedia && <Row icon="share" iconTint="var(--blue)" title={t('Export with photos & videos (.zip)')} accessory="chevron" onClick={doExportZip} />}
+        <Row icon="share" iconTint="var(--blue)" title={LITE ? '导出备份' : t('Export backup (JSON)')} subtitle={hasMedia ? t('Without photos and videos') : undefined} accessory="chevron" onClick={doExport} />
+        {/* 精简模式: a JSON file is the whole backup (lib/lite.js) — the media zip is upstream's. */}
+        {!LITE && hasMedia && <Row icon="share" iconTint="var(--blue)" title={t('Export with photos & videos (.zip)')} accessory="chevron" onClick={doExportZip} />}
         {/* 14 is AUTO_BACKUP_KEEP in lib/mobile.js, written out because the Settings tests mock
             that module wholesale; mobile.autobackup.test.js pins the two together. */}
         {MOBILE && <Row icon="folder" iconTint="var(--blue)" title={t('Auto-backup on changes')}
@@ -787,14 +803,16 @@ export default function Settings({ page = null, find = null, via = null }) {
       {MOBILE && android && <HealthConnectCard S={S} toast={toast} />}
       <Section title={t('Bring data in')}>
         <Row icon="download" iconTint="var(--teal)" title={t('Import backup')} accessory="chevron" onClick={() => fileRef.current.click()} />
-        <Row icon="download" iconTint="var(--teal)" title={t('Import from another app')}
+        {/* 精简模式: JSON backup in and out is the whole data story here, the way 练记 had it;
+            the third-party importers (FitNotes/Strong/Hevy/Apple Health) stay upstream's. */}
+        {!LITE && <Row icon="download" iconTint="var(--teal)" title={t('Import from another app')}
           subtitle={t('FitNotes, Strong, Hevy, or body weight from Apple Health')}
-          accessory="chevron" onClick={() => importRef.current.click()} />
-        <Row icon="key" iconTint="var(--teal)" title={t('Import from Hevy')}
+          accessory="chevron" onClick={() => importRef.current.click()} />}
+        {!LITE && <Row icon="key" iconTint="var(--teal)" title={t('Import from Hevy')}
           subtitle={t('Pull your history with a Hevy Pro API key')}
-          accessory="chevron" onClick={importFromHevy} />
+          accessory="chevron" onClick={importFromHevy} />}
       </Section>
-      {hasMedia && <Section><MediaRow /></Section>}
+      {!LITE && hasMedia && <Section><MediaRow /></Section>}
       <Section>
         <Row icon="trash" iconTint="var(--red)" title={t('Reset everything')} danger onClick={resetEverything} />
       </Section>
@@ -808,7 +826,9 @@ export default function Settings({ page = null, find = null, via = null }) {
       {/* Updates. On Android the row is always there: it checks on demand and installs when a
           release is newer (checksum verified, see onUpdateRowClick). On the web the app updates
           with its server, so the row points at the APK for the phone instead. iOS has no APK. */}
-      <Section footer={MOBILE ? (android ? t('Releases are checked on GitHub. The download is verified against its checksum before the installer opens.') : null) : t('The web app updates together with your server. The Android app installs its own updates from here.')}>
+      {/* 精简模式: no server and no upstream app store — the version row stays, the APK
+          download and the server-update sentence do not (lib/lite.js). */}
+      <Section footer={MOBILE ? (android ? t('Releases are checked on GitHub. The download is verified against its checksum before the installer opens.') : null) : LITE ? null : t('The web app updates together with your server. The Android app installs its own updates from here.')}>
         <Row icon="info" iconTint="var(--grey)" title={t('Version')} value={'v' + __APP_VERSION__} />
         {MOBILE
           ? android && <Row icon="download" iconTint="var(--green)"
@@ -816,7 +836,7 @@ export default function Settings({ page = null, find = null, via = null }) {
               subtitle={checking ? t('Checking…') : t('You have v{0}', __APP_VERSION__)}
               accessory="chevron"
               onClick={() => (updateInfo?.hasUpdate ? onUpdateRowClick() : checkNow())} />
-          : <Row icon="download" iconTint="var(--green)" title={t('Get the Android app')}
+          : !LITE && <Row icon="download" iconTint="var(--green)" title={t('Get the Android app')}
               subtitle={t('Download the APK from opengym.ch')} accessory="chevron"
               onClick={() => window.open('https://opengym.ch/#download', '_blank', 'noopener')} />}
       </Section>
@@ -892,7 +912,7 @@ export default function Settings({ page = null, find = null, via = null }) {
       </Section>}
       {/* The connection banner already says this to a guest; the line is for when it is switched
           off, or its × hid it (#454). */}
-      {!user && !DEMO && !MOBILE && !(showsConnection(S) && showsLocalLine(S)) && <p className="sect-f" style={{ marginTop: -18, marginBottom: 22 }}>{t('Guest mode: your data lives only in this browser.')}</p>}
+      {!LITE && !user && !DEMO && !MOBILE && !(showsConnection(S) && showsLocalLine(S)) && <p className="sect-f" style={{ marginTop: -18, marginBottom: 22 }}>{t('Guest mode: your data lives only in this browser.')}</p>}
     </>,
   }
 
@@ -906,7 +926,7 @@ export default function Settings({ page = null, find = null, via = null }) {
         <button className="sp-back" onClick={back}>
           <Icon name="chevronLeft" /><span>{parent ? t(PAGES[parent].title) : t('Settings')}</span>
         </button>
-        <h1 className="sp-title">{t(PAGES[page].title)}</h1>
+        <h1 className="sp-title">{t(page === 'units' && LITE ? 'Weight unit' : PAGES[page].title)}</h1>
       </div>
       {pages[page]()}
     </div>
@@ -949,20 +969,21 @@ function SettingsRoot({ ctx, preview, open, user, sync, home, go }) {
         <Row key={h.page + ':' + h.title} icon={h.icon} iconTint={h.tint} title={h.label} subtitle={h.trail} accessory="chevron" onClick={() => go(h)} />
       ))}
     </Section> : <div className="sp-empty">{t('No setting matches “{0}”.', q.trim())}</div>) : <>
-      <Section>
+      {/* 精简模式: no accounts, so no account card — its page is gone too (settings-pages.js). */}
+      {!LITE && <Section>
         <button className="lrow tap sp-acct" onClick={() => open('account')}>
           <span className={'sp-avatar' + (initial ? ' on' : '')} aria-hidden="true">{initial || <Icon name="personCircle" />}</span>
           <span className="lrow-m"><span className="lrow-t">{acct.title}</span><span className="lrow-s">{acct.sub}</span></span>
           <Icon name="chevronRight" className="lrow-c" />
         </button>
-      </Section>
+      </Section>}
       {ROOT_GROUPS.map(g => g.filter(id => pageVisible(id, ctx))).filter(g => g.length).map(g => (
         <Section key={g[0]}>
-          {g.map(id => <Row key={id} icon={PAGES[id].icon} iconTint={PAGES[id].tint} title={t(PAGES[id].title)}
+          {g.map(id => <Row key={id} icon={PAGES[id].icon} iconTint={PAGES[id].tint} title={t(id === 'units' && LITE ? 'Weight unit' : PAGES[id].title)}
             value={preview[id]?.() || null} accessory="chevron" onClick={() => open(id)} className="sp-root-row" />)}
         </Section>
       ))}
-      <div className="dim small sp-version">openGym v{__APP_VERSION__}</div>
+      {!LITE && <div className="dim small sp-version">openGym v{__APP_VERSION__}</div>}
     </>}
   </div>
 }

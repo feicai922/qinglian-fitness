@@ -6,6 +6,7 @@ import { workoutControls } from '../lib/workout-controls.js'
 import { unlock, vibrateSupported, appleTouchDevice } from '../lib/sound.js'
 import { wakeLockSupported } from '../lib/wakelock.js'
 import { MOBILE } from '../lib/mobile.js'
+import { LITE } from '../lib/lite.js'
 import { closeThenNav } from '../lib/nav.js'
 import { REST_MAX, fmtRest } from '../lib/duration.js'
 import { durationSheet } from './DurationWheel.jsx'
@@ -61,15 +62,15 @@ export function WorkoutSettings({ close }) {
           options={[{ value: 'cards', label: t('Cards') }, { value: 'list', label: t('List') }, { value: 'compact', label: t('Compact') }]}
           value={layout} onChange={v => update(s => { s.workoutView = v; if (s.active) delete s.active.workoutView })} />
       </Row>
-      <Row icon="gauge" iconTint="var(--purple)" title={t('Effort per set')}>
+      {!LITE && <Row icon="gauge" iconTint="var(--purple)" title={t('Effort per set')}>
         <Segmented className="seg-inline"
           options={[{ value: 'none', label: t('Off') }, { value: 'rir', label: t('RIR') }, { value: 'rpe', label: t('RPE') }]}
           value={effortOf(S)} onChange={v => update(s => { s.effort = v; delete s.showRir })} />
-      </Row>
-      <Row icon="swap" iconTint="var(--indigo)" title={t('Swipe actions')} subtitle={t('Sets, routines and the loop: left removes, right copies')}>
+      </Row>}
+      {!LITE && <Row icon="swap" iconTint="var(--indigo)" title={t('Swipe actions')} subtitle={t('Sets, routines and the loop: left removes, right copies')}>
         <Switch aria-label={t('Swipe actions')} checked={workoutControls(S).swipeSets}
           onChange={v => update(s => { s.wc = { ...workoutControls(s), swipeSets: v } })} />
-      </Row>
+      </Row>}
       <Row icon="image" iconTint="var(--teal)" title={t('Exercise animations')}>
         <Segmented className="seg-inline"
           options={[{ value: 'full', label: t('Full') }, { value: 'mini', label: t('Small') }, { value: 'off', label: t('Hidden') }]}

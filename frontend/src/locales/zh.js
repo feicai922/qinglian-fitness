@@ -712,10 +712,10 @@ export default {
   'Shared routine': '共享的训练日',
   'Unknown exercise': '未知动作',
   'Weekly Training Plan': '每周训练计划',
-  'Made with openGym': '使用 openGym 制作',
+  'Made with openGym': '使用轻练制作',
   'Something went wrong': '出了点问题',
   'This screen could not be drawn. Your data is safe on this device.': '此页面无法显示。你的数据仍安全保存在本设备上。',
-  'Reload openGym': '重新加载 openGym',
+  'Reload openGym': '重新加载轻练',
   'Discard the running workout': '放弃进行中的训练',
 
   // --- v1.2.2: timed sets, progression, estimated 1RM (#16 #17 #18) ---
@@ -1909,7 +1909,7 @@ export default {
   'Scroll to 0:00 to turn the rest timer off.': '滚动到 0:00 即可关闭休息计时。',
   'The short break between the bursts of a rest-pause set.': '歇息暂停组中各段之间的短暂休息。',
   'Each exercise can have its own rest too. Set it in the exercise settings of a routine.': '每个动作也可以有自己的休息时间。在计划的动作设置里修改。',
-  'iPhone doesn’t let openGym vibrate. A sound or a flash does the job.': 'iPhone 不允许 openGym 振动。用提示音或闪烁屏幕就够了。',
+  'iPhone doesn’t let openGym vibrate. A sound or a flash does the job.': 'iPhone 不允许轻练振动。用提示音或闪烁屏幕就够了。',
   'No account, no cloud. Back it up anytime in Data & backup.': '无需账号，也没有云端。随时在“数据与备份”里备份。',
   'Effort per set is off. Turn it on in Settings → Workout to keep rating.': '每组强度已关闭。在 设置 → 训练 中打开即可继续评分。',
   'Enter the code your other device shows under Settings → Account → Add another device. This device then gets a passkey of its own.': '输入你另一台设备在“设置 → 账号 → 添加其他设备”中显示的代码。之后此设备会有自己的通行密钥。',

@@ -225,6 +225,12 @@ export const exerciseNameFor = ex => {
 // carries real casing; i18n-core.test.js checks this list against the packs themselves.
 export const CASED_NAME_LANGS = ['de']
 
+// Whether the English original sits in parentheses next to a translated name when the reader has
+// not touched the "English exercise names" switch. Chinese readers asked for the translated name
+// on its own, so 简体中文 / 繁體中文 default to off; every other language keeps the bilingual
+// default its pack shipped with.
+export const defaultExerciseNameParens = l => !['zh', 'zh-TW'].includes(baseLang(l))
+
 // EXDB stores English names lower-case and the UI title-cases them with CSS. A pack in
 // CASED_NAME_LANGS carries its own casing and must not be cased again on top, so the class that
 // does the title-casing stays off its translated names. A lower-case pack is title-cased like

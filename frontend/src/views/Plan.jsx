@@ -19,6 +19,7 @@ import { glyphOf, DEFAULT_GLYPH } from '../lib/glyphs.js'
 import { DEMO } from '../lib/demo.js'
 import { MOBILE } from '../lib/mobile.js'
 import { coachAvailable } from '../lib/coach.js'
+import { LITE } from '../lib/lite.js'
 import { queueOf, queueView } from '../lib/queue.js'
 import { deriveSessionName } from '../lib/session-merge.js'
 import { markUndone, undoMarks } from '../lib/sync-merge.js'
@@ -138,8 +139,8 @@ export default function Plan() {
   /* The Coach's way in from Plan: its own button in the header (a banner over the week was too
      loud, the last entry of the share menu too hidden). Gated by the same predicate every other
      Coach surface uses, so an instance without the feature sees exactly the header it would have
-     without it. */
-  const showCoach = coachAvailable(config, user, { demo: DEMO, mobile: MOBILE, coachMode })
+     without it. 精简模式 leaves the Coach out entirely (lib/lite.js), so the button goes too. */
+  const showCoach = !LITE && coachAvailable(config, user, { demo: DEMO, mobile: MOBILE, coachMode })
 
   // Share, print, import and starter plans: one menu behind the header button, so the
   // two views below are only about the plan itself.
@@ -149,9 +150,13 @@ export default function Plan() {
       title: t('Plan'),
       subtitle: has ? null : t('Add an exercise to a routine first. An empty plan has nothing to share.'),
       items: [
-        { icon: 'share', label: t('Export plan file'), sub: t('A small file a friend can import into their own openGym. Routines only, none of your workouts or weigh-ins.'), disabled: !has, onClick: exportPlanFile },
-        { icon: 'note', label: t('Print / Save as PDF'), disabled: !has, onClick: printWholePlan },
-        { icon: 'download', label: t('Import a plan file'), onClick: () => fileRef.current?.click() },
+        // 精简模式 keeps the starter plans and drops the file/print sharing menu
+        // (lib/lite.js); the import handler and its hidden file input stay in the tree.
+        ...(!LITE ? [
+          { icon: 'share', label: t('Export plan file'), sub: t('A small file a friend can import into their own openGym. Routines only, none of your workouts or weigh-ins.'), disabled: !has, onClick: exportPlanFile },
+          { icon: 'note', label: t('Print / Save as PDF'), disabled: !has, onClick: printWholePlan },
+          { icon: 'download', label: t('Import a plan file'), onClick: () => fileRef.current?.click() },
+        ] : []),
         { icon: 'clipboard', label: t('Load starter plan'), onClick: starterPlanSheet },
       ],
     })
@@ -276,6 +281,7 @@ function Schedule({ S, update, nav, mode }) {
   const editing = editLoop && !external
 
   return <>
+    {/* 「怎么练」：固定星期 / 循环（Rotation）。精简模式保留这一个开关，它是循环排期的入口。 */}
     <Section className="plan-mode" footer={mode === 'rotation'
       ? t('Routines in a loop. Whatever is next stays next until you train it, whatever the day.')
       : t('The same routines on the same weekdays, every week.')}>
@@ -369,8 +375,10 @@ function Schedule({ S, update, nav, mode }) {
     {/* Weekly muscle volume is analysis: it moved to Stats, next to Muscle balance. Stats only
         shows that card once there is a routine, so the link waits for one too. */}
     {S.routines.length > 0 && <Section className="plan-link">
-      <Row icon="chart" iconTint="var(--indigo)" title={t('Weekly muscle volume')} subtitle={t('Now in Stats, next to Muscle balance')}
-        accessory="chevron" onClick={() => nav('/stats?focus=weekly-volume')} />
+    {/* 精简模式: the weekly-volume analysis is not on Stats here (lib/lite.js), so the row
+        that pointed at it is held back too. */}
+    {!LITE && <Row icon="chart" iconTint="var(--indigo)" title={t('Weekly muscle volume')} subtitle={t('Now in Stats, next to Muscle balance')}
+      accessory="chevron" onClick={() => nav('/stats?focus=weekly-volume')} />}
     </Section>}
   </>
 }
@@ -380,7 +388,7 @@ function Schedule({ S, update, nav, mode }) {
 function Routines({ S, update, nav }) {
   const [edit, setEdit] = useState(false)
   const [flash, setFlash] = useState(null)
-  const swipe = workoutControls(S).swipeSets
+  const swipe = !LITE && workoutControls(S).swipeSets
   const routines = S.routines
   // The order of this list is the order of `S.routines`, and every other screen reads the same
   // array (the Start screen, the day sheets, the routine pickers), so moving a routine here moves

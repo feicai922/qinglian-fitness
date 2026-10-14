@@ -29,6 +29,7 @@ import { REST_MAX, fmtRest } from '../lib/duration.js'
 import { startFlow, exercisePicker, exConfigSheet, exerciseDetailSheet, finishWorkout, exitWorkoutEdit, workoutCompleteSheet, confirmSheet, exerciseNoteSheet, sessionNoteSheet, renameWorkoutSheet, swapActiveWorkoutExercise, barWeightSheet, menuSheet, effortPickerSheet, exerciseHistorySheet, addRoutineToSessionSheet, finishWorkoutSheet } from '../sheets.jsx'
 import { afterScrollRestore, scrollRestorePending } from '../components/Modals.jsx'
 import { effortColor } from '../lib/effort.js'
+import { LITE } from '../lib/lite.js'
 import Elapsed from '../components/Elapsed.jsx'
 import Icon from '../components/Icon.jsx'
 import { Button, Check, NumberField } from '../components/ui.jsx'
@@ -56,6 +57,11 @@ const HOLD_KEY_GRACE_MS = 1500
 function StartChooser() {
   const nav = useNavigate()
   const S = useStore(s => s.S)
+  // 精简模式只保留自由训练：不再显示训练日、其他计划和入门计划入口。
+  if (LITE) return <div className="narrow">
+    <div className="hdr"><div><h1>{t('Start workout')}</h1><div className="sub">{t(DAYN[new Date().getDay()])}</div></div></div>
+    <Button variant="primary" icon="play" onClick={() => startFlow([])}>开始自由训练</Button>
+  </div>
   const todayIds = effectiveRoutineIds(S, todayISO())
   const todayRoutines = effectiveRoutines(S, todayISO())
   const todayName = todayRoutines.map(r => r.name).join(' + ')
@@ -291,7 +297,8 @@ function ExerciseBlock({ entryIdx, compact, dense, editing, onToggle, onToggleSi
   // Effort (RIR or RPE, whichever the profile logs) only makes sense for weighted rep sets,
   // not cardio/timed holds, and is opt-in since it adds a third stepper to every row. `opt`
   // because an unlogged effort is not the same as 0 — RIR 0 says the set went to failure.
-  const kind = effortOf(S)
+  // 精简模式: weight and reps only (lib/lite.js) — no RIR/RPE column on the rows.
+  const kind = LITE ? 'none' : effortOf(S)
   const eff = EFFORT[kind]
   // The effort column carries the scale key (`eff`) and its field name; unlike weight/reps it
   // is not a stepper — it opens a colour-coded picker (see effortCell). `f` is s.rir or s.rpe.
@@ -339,7 +346,9 @@ function ExerciseBlock({ entryIdx, compact, dense, editing, onToggle, onToggleSi
   // The rows and their drop-set sub-rows form one sequence in the order the bar sees them, keyed
   // `i` for a set and `i:dN` for its N-th drop; a rest-pause burst keeps the set's weight, so it
   // is not in the sequence.
-  const plateLoading = mode === 'reps' && !editing
+  // 精简模式: no plate-loading math (lib/lite.js) — a set row shows the weight you typed,
+  // not the plates that make it, and the exercise menu has no Plate loading entry.
+  const plateLoading = !LITE && mode === 'reps' && !editing
   const loadKind = plateLoading ? loadKindFor(S, cfg) : 'none'
   const base = baseWeightFor(S, entry.id)
   const loadSeq = loadKind === 'none' ? [] : (() => {
@@ -400,21 +409,26 @@ function ExerciseBlock({ entryIdx, compact, dense, editing, onToggle, onToggleSi
     sections: [
       { title: t('Today'), items: [
         onSwap && { icon: 'swap', label: t('Swap exercise'), onClick: onSwap, disabled: busy },
-        { icon: 'sunrise', label: t('Add warm-up set'), onClick: onAddWarmup },
+        // 精简模式: sets are working sets (lib/lite.js), so the warm-up entry is held back.
+        !LITE && { icon: 'sunrise', label: t('Add warm-up set'), onClick: onAddWarmup },
         { icon: 'note', label: entry.note ? t('Edit note') : t('Add note'), sub: entry.note || undefined, onClick: () => exerciseNoteSheet(entryIdx) },
-        onNoProg && { icon: 'chartLineSlash', label: t('Don’t count for progression'), sub: t('This exercise, this session only'), on: entry.noProg === true, onClick: () => onNoProg(entry.noProg !== true) },
+        // 精简模式: progression is not surfaced, so the opt-out goes with it (lib/lite.js).
+        !LITE && onNoProg && { icon: 'chartLineSlash', label: t('Don’t count for progression'), sub: t('This exercise, this session only'), on: entry.noProg === true, onClick: () => onNoProg(entry.noProg !== true) },
       ] },
       { title: t('Look it up'), items: [
         { icon: 'history', label: t('History'), sub: last ? t('Last time') + ' ' + fmtDate(last.d) : undefined, onClick: () => exerciseHistorySheet(entry.id) },
         { icon: 'info', label: t('How to do it'), onClick: () => exerciseDetailSheet(ex) },
       ] },
       { title: t('Settings'), items: [
-        onProgressionSettings && { icon: 'slider', label: t('Exercise settings'), sub: guidance ? t(guidance.policyLabel) : t('Sets, reps, rest, progression'), onClick: onProgressionSettings },
+        // 精简模式 keeps the routine editor to sets, reps and weight, so the progression
+        // rule editor is upstream's (lib/lite.js).
+        !LITE && onProgressionSettings && { icon: 'slider', label: t('Exercise settings'), sub: guidance ? t(guidance.policyLabel) : t('Sets, reps, rest, progression'), onClick: onProgressionSettings },
         onRest && { icon: 'timer', label: t('Rest timer'), sub: restSub, onClick: onRest },
         plateLoading && { icon: 'plate', label: t('Plate loading'), sub: loadSummary, onClick: () => barWeightSheet(entry.id, cfg) },
         routineUpdate && { icon: 'clipboard', label: t('Update routine'), sub: routineUpdate.sub, onClick: routineUpdate.run },
       ] },
-      { title: t('Order and supersets'), items: [
+      // 精简模式 has no supersets to mention, so the header is left off (lib/lite.js).
+      { title: LITE ? undefined : t('Order and supersets'), items: [
         onPairPrev && { icon: 'link', label: t('Make superset with previous'), onClick: onPairPrev },
         onPairNext && { icon: 'link', label: t('Make superset with next'), onClick: onPairNext },
         onMoveUp && { icon: 'chevronUp', label: t('Move up'), onClick: onMoveUp, disabled: busy || !canMoveUp },
@@ -433,7 +447,7 @@ function ExerciseBlock({ entryIdx, compact, dense, editing, onToggle, onToggleSi
   const setNumOf = (s, i) => setNumberAt(entry.sets, i)
   const sideTagOf = s => s.side === 'L' ? t('Left') : s.side === 'R' ? t('Right') : null
   const openSetMenu = (s, i) => {
-    const warm = isWarmupRow(s)
+    const warm = !LITE && isWarmupRow(s)
     const sideTag = sideTagOf(s)
     menuSheet({
       title: warm ? t('Warm-up') : sideTag ? t('Set {0} ({1})', setNumOf(s, i), sideTag) : t('Set {0}', setNumOf(s, i)),
@@ -442,7 +456,9 @@ function ExerciseBlock({ entryIdx, compact, dense, editing, onToggle, onToggleSi
         // A warm-up logged as a work set (or the other way round) changes phase here. Reps sets
         // only, the kind a warm-up is added as; one work set always stays, and a per-side
         // exercise's work sets keep their sides, so a warm-up there is not made one again.
-        { items: [
+        // 精简模式: a set is logged and checked off (lib/lite.js) — the warm-up phase, the
+        // failure flag and the drop/burst rows are upstream's, so this group is held back.
+        !LITE && { items: [
           !warm && mode === 'reps' && canBeWarmup(s) && entry.sets.some((x, j) => j !== i && !isWarmupRow(x)) && { icon: 'sunrise', label: t('Make it a warm-up set'), onClick: () => setPhaseAt(i, true) },
           warm && mode === 'reps' && !perSide && { icon: 'dumbbell', label: t('Count it as a working set'), onClick: () => setPhaseAt(i, false) },
           // Taken to failure: a toggle with its check, like the menu's other on/off rows. It counts
@@ -450,7 +466,7 @@ function ExerciseBlock({ entryIdx, compact, dense, editing, onToggle, onToggleSi
           // per-side pair is one set, so both halves get it.
           !warm && mode !== 'cardio' && { icon: 'gauge', label: t('Taken to failure'), sub: t('Nothing left in the tank'), on: isFailureSet(s), onClick: () => toggleFailureAt(i) },
         ] },
-        { title: t('Add to this set'), items: [
+        !LITE && { title: t('Add to this set'), items: [
           !warm && mode === 'reps' && !isRestPauseSet(s) && { icon: 'arrowDown', label: t('Drop set'), sub: t('+ Drop'), onClick: () => addDropRow(i) },
           !warm && mode === 'reps' && !isDropSet(s) && { icon: 'bolt', label: t('Rest-pause burst'), sub: t('+ Burst'), onClick: () => addBurstRow(i) },
         ] },
@@ -552,6 +568,7 @@ function ExerciseBlock({ entryIdx, compact, dense, editing, onToggle, onToggleSi
   // the drops and bursts hang under that side's row, each editable, exactly like a straight set's
   // do under its row. Reads the side object, not the aggregate.
   const sideExtras = (s, i, side) => {
+    if (LITE) return null
     const sd = (s.sides && s.sides[side]) || {}
     return <>
       {dropsOf(sd).map((d, di) => (
@@ -585,8 +602,8 @@ function ExerciseBlock({ entryIdx, compact, dense, editing, onToggle, onToggleSi
   // hold draws two of them, L then R, inside one swipe so the pair slides as the one set it is.
   // A set taken to failure wears a small "F" on its number, the button every row's menu opens
   // from. The button's own label speaks for it, so a screen reader hears it with the set number.
-  const failMark = s => isFailureSet(s) ? <span className="failmark" aria-hidden="true">{t('F')}</span> : null
-  const failSay = (s, label) => isFailureSet(s) ? label + ', ' + t('Taken to failure') : label
+  const failMark = s => !LITE && isFailureSet(s) ? <span className="failmark" aria-hidden="true">{t('F')}</span> : null
+  const failSay = (s, label) => !LITE && isFailureSet(s) ? label + ', ' + t('Taken to failure') : label
   const plainRow = (s, i) => (
     <div ref={el => onSetRowRef?.(i, el)} className={'setrow' + (s.done ? ' done' : '') + (col3 ? ' eff3' : '') + (timed ? ' timed' : '')}>
       <button type="button" className="n" aria-label={failSay(s, sideTagOf(s) ? t('Set {0} ({1})', setNumOf(s, i), sideTagOf(s)) : t('Set {0}', setNumOf(s, i)))} aria-describedby={optsId} title={t('More')} onClick={() => openSetMenu(s, i)}>{setNumOf(s, i)}{failMark(s)}</button>
@@ -642,7 +659,9 @@ function ExerciseBlock({ entryIdx, compact, dense, editing, onToggle, onToggleSi
     {/* Kept out of progression: by hand for this session (the ⋯ menu, with its undo right here),
         or by a deload or rehab routine, which owns that choice and offers no undo. On in every
         view, compact included: it changes what the next session is built from. */}
-    {entry.noProg === true && <div className="noprog">
+    {/* 精简模式: no progression rule is shown, so a flag that only speaks to one is held back
+        too (lib/lite.js); the saved `noProg` value is left untouched. */}
+    {!LITE && entry.noProg === true && <div className="noprog">
       <Icon name="chartLineSlash" /><span>{t('Not counted for progression')}</span>
       {onNoProg && <button type="button" className="chip" onClick={() => onNoProg(false)}>{t('Undo')}</button>}
     </div>}
@@ -679,7 +698,7 @@ function ExerciseBlock({ entryIdx, compact, dense, editing, onToggle, onToggleSi
     {entry.note && <div className="exnote">{entry.note}</div>}
     {planLine}
     {refLine}
-    {guidance && onProgressionSettings && <button type="button" className={'progline' + (plan.kind === 'deload' ? ' warn' : '')}
+    {!LITE && guidance && onProgressionSettings && <button type="button" className={'progline' + (plan.kind === 'deload' ? ' warn' : '')}
       aria-label={t('Open exercise settings')} onClick={onProgressionSettings}>
       <Icon name={plan.kind === 'up' ? 'arrowUp' : plan.kind === 'deload' ? 'arrowDown' : 'lightbulb'} />
       <span><strong>{t(guidance.policyLabel)}</strong> · {t(...guidance.why)}</span>
@@ -691,8 +710,8 @@ function ExerciseBlock({ entryIdx, compact, dense, editing, onToggle, onToggleSi
       <div className={'sethead' + (col3 ? ' eff3' : '') + (timed ? ' timed' : '') + (perSide ? ' per-side' : '') + (wc.steppers ? '' : ' plain')}><span className="n-sp" /><span className="w-sp">{col1.hd}</span>{col2 && <span className="r-sp">{col2.hd}</span>}{col3 && <span className={col3.eff ? 'eff-sp' : 'r-sp'}>{col3.hd}</span>}{timed && <span className="ck-sp" />}<span className="ck-sp" /></div>
       <span id={optsId} className="vh">{t('Options: copy, remove')}</span>
       {entry.sets.map((s, i) => {
-        const warm = isWarmupRow(s)
-        const warmBefore = i > 0 && isWarmupRow(entry.sets[i - 1])
+        const warm = !LITE && isWarmupRow(s)
+        const warmBefore = !LITE && i > 0 && isWarmupRow(entry.sets[i - 1])
         const isFirstWarmup = warm && !warmBefore
         // Numbering restarts per phase: with two warm-ups the first work set reads 1, not 3.
         const phaseNum = entry.sets.slice(0, i + 1).filter(x => isWarmupRow(x) === warm).length
@@ -734,7 +753,7 @@ function ExerciseBlock({ entryIdx, compact, dense, editing, onToggle, onToggleSi
           {/* Drop-sets and rest-pause bursts extend this same row — no long rest, no new set.
               A planned exercise arrives with these already filled in (applyIntensifierPlan);
               every value here is just as editable as the main row's own weight/reps. */}
-          {!warm && mode === 'reps' && <>
+          {!LITE && !warm && mode === 'reps' && <>
             {dropsOf(s).map((d, di) => (
               <div className="subrow" key={'d' + di}>
                 <span className="subn">{t('Drop {0}', di + 1)}</span>
@@ -760,7 +779,7 @@ function ExerciseBlock({ entryIdx, compact, dense, editing, onToggle, onToggleSi
       })}
       <div style={{ height: 8 }} />
       {wc.setShortcuts ? <div className="row" style={{ flexWrap: 'wrap' }}>
-        <Button size="sm" icon="sunrise" onClick={onAddWarmup}>{t('Add warm-up set')}</Button>
+        {!LITE && <Button size="sm" icon="sunrise" onClick={onAddWarmup}>{t('Add warm-up set')}</Button>}
         <Button size="sm" icon="minus" disabled={entry.sets.length <= setSpanAt(entry.sets, entry.sets.length - 1)[1]} onClick={onRemoveSet}>{t('Remove set')}</Button>
         <Button size="sm" icon="plus" onClick={onAddSet}>{t('Add set')}</Button>
       </div> : <Button size="sm" icon="plus" onClick={onAddSet}>{t('Add set')}</Button>}
@@ -1185,8 +1204,10 @@ function ActiveWorkout() {
     if (focusMode) focusPointerEpoch.current++
     s.active.entries = unpairSuperset(s.active.entries, idx)
   })
-  const onPairPrev = !isSuperset && cur > 0 ? () => pairAt(cur - 1, cur) : null
-  const onPairNext = !isSuperset && cur < A.entries.length - 1 ? () => pairAt(cur, cur + 1) : null
+  // 精简模式: one exercise at a time (lib/lite.js) — no superset pairing entry points. An
+  // existing saved superset still reads and flows, it just cannot be made here.
+  const onPairPrev = !LITE && !isSuperset && cur > 0 ? () => pairAt(cur - 1, cur) : null
+  const onPairNext = !LITE && !isSuperset && cur < A.entries.length - 1 ? () => pairAt(cur, cur + 1) : null
   // `member`: the exercise ⋯ menu's move, which reorders a superset member inside its superset
   // (lib/active-workout-order.js moveActiveWorkoutEntry). The buttons below the exercise move the
   // whole unit. Both return the same index permutation, so everything below remaps the same way.
@@ -1434,14 +1455,18 @@ function ActiveWorkout() {
       ] },
       { title: t('Add'), items: [
         { icon: 'plusCircle', label: t('Add exercise'), onClick: addExercise },
-        !editing && { icon: 'clipboard', label: t('Add routine'), sub: t('Bring another routine into this session'), onClick: addRoutineToSessionSheet },
+        // 精简模式: a session is one workout at a time, so the repeat "Add routine" entry
+        // goes with the advanced plan surface (lib/lite.js).
+        !LITE && !editing && { icon: 'clipboard', label: t('Add routine'), sub: t('Bring another routine into this session'), onClick: addRoutineToSessionSheet },
       ] },
       { title: t('This workout'), items: [
         A.backfill && A.entries.length > 0 && { icon: 'checkCircle', label: t('Mark all sets done'), onClick: markAllDone },
         { icon: 'pencil', label: t('Rename workout'), onClick: renameWorkoutSheet },
         { icon: 'layout', label: t('Layout'), sub: LAYOUT_LABEL[workoutView] || LAYOUT_LABEL.cards, onClick: openLayoutMenu },
         { icon: 'note', label: A.note ? t('Edit session note') : t('Add session note'), onClick: sessionNoteSheet },
-        noProgSwitchable && { icon: 'chartLineSlash', label: t('Don’t count for progression'), sub: t('Every exercise in this workout'), on: sessionNoProg(A), onClick: toggleSessionNoProg },
+        // 精简模式: progression is not surfaced, so the session-wide opt-out goes with it
+        // (lib/lite.js).
+        !LITE && noProgSwitchable && { icon: 'chartLineSlash', label: t('Don’t count for progression'), sub: t('Every exercise in this workout'), on: sessionNoProg(A), onClick: toggleSessionNoProg },
       ] },
       { items: [
         !editing && { icon: 'trash', label: t('Discard workout'), danger: true, onClick: discardWorkout },

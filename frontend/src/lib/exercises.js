@@ -1,6 +1,7 @@
 import { EXDB, EXALIAS } from './exercises-data.js'
 import MUSCLE_MAP from './exercise-muscle-map.json' with { type: 'json' }
 import V13_IDS from './catalogue-v13-ids.json' with { type: 'json' }
+import { GIF_MIRROR_MEDIA } from './exercise-gif-mirror.js'
 import { t, getVersion, exerciseNameSearchText } from './i18n-core.js'
 
 export { EXDB }
@@ -185,6 +186,14 @@ const GIF_BASE = ENV.VITE_GIF_BASE || 'exercise-media/clip/'
 // player stalled at every loop of these 3-second clips on real phones; an image decodes like the
 // GIFs the app had before and loops by itself.
 const CLIP_EXT = ENV.VITE_CLIP_EXT === 'webp' ? '.webp' : '.mp4'
+// 远端(remote)精简版不把动画打进包里，改从 CDN 拉。练记(lianji-fitness)用的正是同一套
+// 180x180 Gym visual 素材，但存的是 GIF：Android WebView 里 <img> 自播 GIF 比循环 MP4 顺，
+// 所以配了 VITE_GIF_MIRROR_BASE、且这个动作在镜像表里时，直接返回 GIF 地址（isVideoSrc
+// 对 .gif 返回 false，Media.jsx 会自动走 <img> 分支）。没配或没命中时保持原来的 MP4 路径。
+// The build-time mirror. A user can point the app somewhere else at runtime (Settings → GIF 图源,
+// stored as S.gifMirrorBase), or switch the mirror off with an empty value; passing no third
+// argument to gifSrc keeps this build-time default, so older callers and tests behave as before.
+export const GIF_MIRROR_BASE = ENV.VITE_GIF_MIRROR_BASE || ''
 // About 940 exercises are drawn twice, on a male and on a female figure: `fv` names the female
 // drawing of a male exercise, `mv` the male drawing of a female one. Which figure shows is a
 // setting (figureOf); the exercise, its id and everything logged against it stay the same either
@@ -196,7 +205,18 @@ export const figureOf = S => (S?.exFigure === 'female' || S?.exFigure === 'male'
 const drawing = (ex, figure) => (figure === 'female' ? ex.fv : figure === 'male' ? ex.mv : null) || null
 export const imgSrc = (ex, figure) => IMG_BASE + (drawing(ex, figure) ? drawing(ex, figure) + '.webp' : ex.img)
 const clipFile = f => (CLIP_EXT !== '.mp4' && f.endsWith('.mp4') ? f.slice(0, -4) + CLIP_EXT : f)
-export const gifSrc = (ex, figure) => GIF_BASE + clipFile(drawing(ex, figure) ? drawing(ex, figure) + '.mp4' : ex.gif)
+// A user-typed base is forgiving: surrounding space is dropped, a missing trailing slash added.
+export const normalizeGifMirrorBase = base => {
+  const b = typeof base === 'string' ? base.trim() : ''
+  if (!b) return ''
+  return b.endsWith('/') ? b : b + '/'
+}
+export const gifSrc = (ex, figure, mirrorBase) => {
+  const base = normalizeGifMirrorBase(mirrorBase === undefined ? GIF_MIRROR_BASE : mirrorBase)
+  const media = base && GIF_MIRROR_MEDIA[ex?.id]
+  if (media) return `${base}${ex.id}-${media}.gif`
+  return GIF_BASE + clipFile(drawing(ex, figure) ? drawing(ex, figure) + '.mp4' : ex.gif)
+}
 // The catalogue's animations are short MP4 loops; a fork's or an older build's may still be GIFs.
 export const isVideoSrc = src => /\.(mp4|webm)(\?|$)/i.test(src || '')
 

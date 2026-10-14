@@ -5,6 +5,7 @@ import { DEMO } from '../lib/demo.js'
 import { t } from '../lib/i18n.js'
 import { connectionView, actionLabel, syncNowWithToast, pairAgain, connectServer, signInAgain, useOnline } from './ServerSync.jsx'
 import Icon from './Icon.jsx'
+import { LITE } from '../lib/lite.js'
 
 // How long a change may sit unsent while the server is reachable before it is worth a word: the
 // push after an edit, or the one boot owes, lands well within this, and saying "not synced" for
@@ -44,7 +45,9 @@ function useConnection() {
   const view = connectionView(sync, { online })
   // Signed out on the web, the sign-in screen is the whole app: it hears only that the server
   // ended the session, and that the changes are still here.
-  const show = !DEMO && !onboarding && !!view?.banner && (!!user || guest || status === 'auth') && (status !== 'pending' || waited)
+  // 精简模式 is local-only and Chinese-only: there is no server, no account and no sign-in
+  // surface behind this line, so the whole connection strip stays out of the lite build.
+  const show = !LITE && !DEMO && !onboarding && !!view?.banner && (!!user || guest || status === 'auth') && (status !== 'pending' || waited)
   return { view, show, user, status }
 }
 

@@ -1,12 +1,13 @@
-import { useEffect, useLayoutEffect, useRef } from 'react'
+import { lazy, useEffect, useLayoutEffect, useRef } from 'react'
 import { HashRouter, Routes, Route, Navigate, useNavigate, useLocation, useNavigationType } from 'react-router-dom'
 import { useStore } from './store/useStore.js'
 import { useUI } from './store/useUI.js'
 import { bindUI } from './components/ui.jsx'
 import { setWeightDecimals } from './lib/format.js'
 import { accentValue, applyAccent } from './lib/accent.js'
-import { setLang, useLang, baseLang } from './lib/i18n.js'
+import { setLang, useLang, baseLang, defaultExerciseNameParens } from './lib/i18n.js'
 import { effectiveLang } from './lib/default-lang.js'
+import { LITE } from './lib/lite.js'
 import { setPlayOnSilent, setVibrate, setAlarmBuzzer } from './lib/sound.js'
 import { buzzAsAlarm } from './lib/rest-alert.js'
 import { setNav } from './lib/nav.js'
@@ -30,22 +31,30 @@ import { openDeviceLinkRedeem } from './components/Passkeys.jsx'
 import Login from './views/Login.jsx'
 import MobileOnboarding from './views/MobileOnboarding.jsx'
 import Home from './views/Home.jsx'
-import CheckIn from './views/CheckIn.jsx'
-import Plan from './views/Plan.jsx'
-import RoutineEdit from './views/RoutineEdit.jsx'
 import Workout from './views/Workout.jsx'
 import Stats from './views/Stats.jsx'
 import History from './views/History.jsx'
 import Library from './views/Library.jsx'
-import Muscles from './views/Muscles.jsx'
-import StructuralBalance from './views/StructuralBalance.jsx'
-import ProgressPhotos from './views/ProgressPhotos.jsx'
 import { SettingsRoute } from './views/Settings.jsx'
-import Admin from './views/Admin.jsx'
-import CoachChat from './views/CoachChat.jsx'
-import Measurements from './views/Measurements.jsx'
-import CoachIntake from './views/CoachIntake.jsx'
-import CoachSetup from './views/CoachSetup.jsx'
+
+// 计划页与训练日编辑在两种构建里都注册：Lite 也要排计划与循环（Rotation），
+// 只是页面内部把分享/进阶/身体图示等上游功能按 LITE 收掉。
+const Plan = lazy(() => import('./views/Plan.jsx'))
+const RoutineEdit = lazy(() => import('./views/RoutineEdit.jsx'))
+
+// 完整版专用页面只在完整构建里注册。LITE 是构建时常量，因此精简包既不会渲染这些入口，
+// 也不会为它们生成聊天、扫码、身体图示等额外资源。
+const CheckIn = LITE ? null : lazy(() => import('./views/CheckIn.jsx'))
+const Muscles = LITE ? null : lazy(() => import('./views/Muscles.jsx'))
+const StructuralBalance = LITE ? null : lazy(() => import('./views/StructuralBalance.jsx'))
+const ProgressPhotos = LITE ? null : lazy(() => import('./views/ProgressPhotos.jsx'))
+const Measurements = LITE ? null : lazy(() => import('./views/Measurements.jsx'))
+const Admin = LITE ? null : lazy(() => import('./views/Admin.jsx'))
+// AI 教练聊天页在两种构建里都注册：Lite 的 /coach 是自带密钥的本机聊天页（vite.config.js 把
+// 这个模块换成 CoachChat.lite.jsx），完整版仍是服务端 Coach 的对话页。
+const CoachChat = lazy(() => import('./views/CoachChat.jsx'))
+const CoachIntake = LITE ? null : lazy(() => import('./views/CoachIntake.jsx'))
+const CoachSetup = LITE ? null : lazy(() => import('./views/CoachSetup.jsx'))
 
 // last known scrollY per route, so back-navigation can put the page where it was
 const scrollPositions = new Map()
@@ -113,7 +122,7 @@ function Shell() {
   // worked out here, on this device, and never written into the synced state (lib/default-lang.js).
   const config = useStore(s => s.config)
   const lang = effectiveLang(S, config)
-  useEffect(() => { setLang(lang, S.enParens?.[baseLang(lang)] ?? true, S.enOnly?.[baseLang(lang)] === true) }, [lang, S.enParens, S.enOnly])
+  useEffect(() => { setLang(lang, S.enParens?.[baseLang(lang)] ?? defaultExerciseNameParens(lang), S.enOnly?.[baseLang(lang)] === true) }, [lang, S.enParens, S.enOnly])
   // Same shape as the language: a module-level display setting, pushed when it changes (#139).
   useEffect(() => { setWeightDecimals(S.wdec) }, [S.wdec])
   useEffect(() => { document.documentElement.lang = lang }, [langV, lang])
@@ -205,29 +214,35 @@ function Shell() {
           {!authed ? <Login /> : needsMobileOnboarding ? <MobileOnboarding /> : (
             <Routes>
               <Route path="/home" element={<Home />} />
-              {/* Gym check-in — switched off in Settings, the route falls through to the
-                  catch-all redirect below. */}
-              {S.checkIn !== false && <Route path="/checkin" element={<CheckIn />} />}
+              {/* Gym check-in — switched off in Settings, and off altogether in a lite build;
+                  either way the route falls through to the catch-all redirect below. */}
+              {!LITE && S.checkIn !== false && <Route path="/checkin" element={<CheckIn />} />}
               <Route path="/plan" element={<Plan />} />
               <Route path="/plan/r/:id" element={<RoutineEdit />} />
               <Route path="/workout" element={<Workout />} />
               <Route path="/stats" element={<Stats />} />
               <Route path="/history" element={<History />} />
               <Route path="/library" element={<Library />} />
-              <Route path="/muscles" element={<Muscles />} />
-              <Route path="/structural-balance" element={<StructuralBalance />} />
-              <Route path="/progress-photos" element={<ProgressPhotos />} />
-              <Route path="/measurements" element={<Measurements />} />
+              {/* 精简模式: the body-map exercise browser is upstream's; Library hides its
+                  "By muscle" button, and without a route a deep link falls through too. */}
+              {!LITE && <Route path="/muscles" element={<Muscles />} />}
+              {/* 精简模式: the three extra progress screens are upstream's. Their cards on Stats
+                  are held back by the same flag (views/Stats.jsx), so nothing links here; with
+                  no route they fall through to the catch-all like any unknown path. */}
+              {!LITE && <Route path="/structural-balance" element={<StructuralBalance />} />}
+              {!LITE && <Route path="/progress-photos" element={<ProgressPhotos />} />}
+              {!LITE && <Route path="/measurements" element={<Measurements />} />}
               <Route path="/settings" element={<SettingsRoute />} />
               <Route path="/settings/:page" element={<SettingsRoute />} />
               {/* The Coach screens gate themselves on the instance config; the routes exist
                   unconditionally so a deep link from a notification lands somewhere sane
-                  rather than on the catch-all. */}
+                  rather than on the catch-all. 精简模式 leaves the whole Coach, the admin
+                  dashboard and the server account behind: they are not part of this fork. */}
               <Route path="/coach" element={<CoachChat />} />
-              <Route path="/coach/intake" element={<CoachIntake />} />
-              <Route path="/coach/proposal" element={<Navigate to="/coach" replace />} />
-              <Route path="/coach/setup" element={<CoachSetup />} />
-              <Route path="/admin" element={user?.admin ? <Admin /> : <Navigate to="/home" replace />} />
+              {!LITE && <Route path="/coach/intake" element={<CoachIntake />} />}
+              {!LITE && <Route path="/coach/proposal" element={<Navigate to="/coach" replace />} />}
+              {!LITE && <Route path="/coach/setup" element={<CoachSetup />} />}
+              {!LITE && <Route path="/admin" element={user?.admin ? <Admin /> : <Navigate to="/home" replace />} />}
               <Route path="*" element={<Navigate to="/home" replace />} />
             </Routes>
           )}

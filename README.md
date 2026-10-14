@@ -1,359 +1,151 @@
-<div align="center">
+# 轻练
 
-<img src="assets/banner.png" alt="openGym" width="720">
+**中文优先的健身训练记录应用，基于 [DuarteSantos8/openGym](https://github.com/DuarteSantos8/openGym) 精简改造。**
 
-**A self-hosted gym and body-weight tracker you actually own.**
+轻练保留了 openGym 最实用的部分：循环训练计划、动作与重量记录、组间休息计时、统计热力图、AI 教练。同时移除了用不到的功能，并把动作素材改为按需在线加载，而不是全部塞进安装包。
 
-Plan your week, run guided workouts, log every set and your body weight,<br>
-on your phone, synced across your devices, behind your own passkey login.
+## 与上游的关系
 
-[![Discord](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fdiscord.com%2Fapi%2Finvites%2Fe62jY6fwVb%3Fwith_counts%3Dtrue&query=%24.approximate_member_count&suffix=%20members&label=Discord&logo=discord&logoColor=white&color=5865F2&style=for-the-badge)](https://discord.gg/e62jY6fwVb)
-[![Online](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fdiscord.com%2Fapi%2Finvites%2Fe62jY6fwVb%3Fwith_counts%3Dtrue&query=%24.approximate_presence_count&suffix=%20online&label=&logo=discord&logoColor=white&color=3BA55C&style=for-the-badge)](https://discord.gg/e62jY6fwVb)
-[![GitHub stars](https://img.shields.io/github/stars/DuarteSantos8/openGym?style=for-the-badge&logo=github&logoColor=white&color=24292f)](https://github.com/DuarteSantos8/openGym/stargazers)
+- 上游项目：[DuarteSantos8/openGym](https://github.com/DuarteSantos8/openGym)
+- 本项目是非商业精简分支，只做删减、中文化和小幅适配，不改变上游的核心数据模型
+- 上游版权归 Duarte Santos 所有，本项目继续以 **AGPL-3.0** 开源，详见 [LICENSE](LICENSE) 和 [NOTICE.md](NOTICE.md)
 
-<a href="https://trendshift.io/repositories/88268?utm_source=repository-badge&amp;utm_medium=badge&amp;utm_campaign=badge-repository-88268" target="_blank" rel="noopener noreferrer"><img src="https://trendshift.io/api/badge/repositories/88268" alt="DuarteSantos8%2FopenGym | Trendshift" width="250" height="55"/></a>
-<a href="https://trendshift.io/repositories/88268?utm_source=trendshift-badge&amp;utm_medium=badge&amp;utm_campaign=badge-trendshift-88268" target="_blank" rel="noopener noreferrer"><img src="https://trendshift.io/api/badge/trendshift/repositories/88268/weekly?language=JavaScript" alt="DuarteSantos8%2FopenGym | Trendshift" width="250" height="55"/></a>
+### 主要精简内容
 
-[![Release](https://img.shields.io/github/v/release/DuarteSantos8/openGym?style=flat-square)](https://github.com/DuarteSantos8/openGym/releases)
-[![Downloads](https://img.shields.io/github/downloads/DuarteSantos8/openGym/total?style=flat-square&label=downloads)](https://github.com/DuarteSantos8/openGym/releases)
-[![Tests](https://img.shields.io/github/actions/workflow/status/DuarteSantos8/openGym/test.yml?branch=main&label=tests&style=flat-square)](https://github.com/DuarteSantos8/openGym/actions/workflows/test.yml)
-[![Pipeline](https://gitlab.com/DuarteSantos8/opengym/badges/main/pipeline.svg?style=flat-square)](https://gitlab.com/DuarteSantos8/opengym/-/pipelines)
-[![Coverage](https://gitlab.com/DuarteSantos8/opengym/badges/main/coverage.svg?job=test:frontend&style=flat-square)](https://gitlab.com/DuarteSantos8/opengym/-/pipelines?ref=main)
-[![License: AGPL v3](https://img.shields.io/badge/license-AGPL--3.0-a3e635?style=flat-square)](LICENSE)
+- 移除健身房签到、扫码识别及条码扫描依赖
+- 移除多用户、账号、社交、订阅等在线功能
+- 动作库只保留热门动作和训练计划相关动作，不再内置全量素材
+- 动作动画改为打开详情时按需请求，不在启动时批量下载
+- 界面默认中文，动作名称同时保留英文原名
+- Android 应用名、包名、版本号和图标已与原版区分
 
-[Website](https://opengym.ch) ·
-[Live demo](https://opengym.ch/demo/) ·
-[Android APK](https://github.com/DuarteSantos8/openGym/releases/latest) ·
-[Self-hosting guide](docs/SELF_HOSTING.md) ·
-[Roadmap](ROADMAP.md) ·
-[Changelog](CHANGELOG.md)
+## 主要功能
 
-<a href="https://buymeacoffee.com/duartesantos" target="_blank"><img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" alt="Buy Me A Coffee" height="45" width="163"></a>
-<a href="https://ko-fi.com/opengym" target="_blank"><img src="https://ko-fi.com/img/githubbutton_sm.svg" alt="Support openGym on Ko-fi" height="45"></a>
+| 模块 | 说明 |
+| --- | --- |
+| 训练计划 | 按循环轮次安排训练，不绑定具体星期；可设置每个训练日练什么 |
+| 动作记录 | 记录动作、重量、组数、次数和完成情况 |
+| 训练计时 | 组间休息倒计时、通知提醒 |
+| 统计 | 训练热力图、容量统计等，全部由本地记录生成，不需要扫码 |
+| 动作库 | 热门动作 + 训练计划相关动作，中文名称优先，保留英文名 |
+| 动作素材 | 静态图可随包，动画在线按需加载，支持自定义图源 |
+| AI 教练 | 通过 Base URL + API Key 接入 OpenAI 兼容接口 |
+| 数据导出 | 训练记录可导出为 JSON，便于备份和迁移 |
 
-</div>
+## Android 三种安装包
 
-<table align="center">
-<tr>
-<td align="center"><img src="assets/screenshots/home.png" alt="Home screen" width="230"><br><sub><b>Home</b> · today's workout and weight</sub></td>
-<td align="center"><img src="assets/screenshots/workout.png" alt="Workout screen" width="230"><br><sub><b>Guided workout</b> · demos and sets</sub></td>
-<td align="center"><img src="assets/screenshots/stats.png" alt="Stats screen" width="230"><br><sub><b>Stats</b> · heatmap, charts and PRs</sub></td>
-</tr>
-</table>
+仓库提供三种媒体策略，互不覆盖：
 
-## Why openGym
+| 变体 | 说明 | 适用场景 |
+| --- | --- | --- |
+| `remote` | 静态图随包，动画在线加载 | 推荐；安装包小，动画需要联网 |
+| `local` | 只打包热门动作和训练计划相关动作的 180px 素材 | 常用动作可离线查看 |
+| `full` | 打包全量素材，不压缩、不省略 | 完全离线，安装包最大 |
 
-Most workout apps keep your data on their servers, push you towards a subscription, or vanish
-when the company does. openGym runs on your own box, keeps your data in a folder you control, and
-is yours to fork. It still behaves like a modern app: installable on the home screen, passkey
-sign-in, works offline, syncs between your phone and your laptop.
+## 构建 APK
 
-No account on someone else's server, no subscription, no ads, no telemetry. One
-`docker compose up` and it's running.
+需要 JDK 21 和 Android SDK 35。默认路径在脚本顶部，可按本机环境修改。
 
-The [in-browser demo](https://opengym.ch/demo/) is the real app with example data,
-if you want to try it before installing anything.
-
-## Features
-
-**Planning**
-
-- A routine per weekday over a library of **over 5,600 exercises** with animated demos, searchable and
-  browsable by muscle on a body map. Filter by the equipment you own.
-- Four starter plans (Push/Pull/Legs, Upper/Lower, Full Body, 5×5) that load as ordinary,
-  editable routines.
-- Move a session to another day without touching the weekly plan. The week starts on Monday or
-  Sunday, your choice.
-- Or skip the weekdays altogether: a **rotation** (A, B, C, A, ...) where the next session is
-  simply the next one you haven't done, however the week went.
-- Supersets, warm-up sets, drop sets and rest-pause, timed exercises (planks, hangs, carries),
-  cardio by time and speed, rest time per exercise, planned deloads.
-- Your own exercises, with your own photo, GIF or short video. Location data is stripped on the
-  device before upload.
-
-**Training**
-
-- Guided sessions: today's workout starts itself, weights are pre-filled from last time, a rest
-  timer runs between sets, PRs are detected as you go. On a rest day it tells you when the next
-  session is.
-- A quiet workout screen: one menu per exercise, the set number as the set's own menu, card or
-  list view. Switches in Settings bring the old button rows back if you liked them.
-- Optional effort column as RIR or RPE, colour-coded, with a plain-language line per level.
-- Plate math for barbell, EZ bar, trap bar and Smith machine, worked out from the plates you own.
-- Bodyweight exercises know they carry no load: log reps, add a dip belt if you use one.
-- Per-side reps for lunges and single-arm work, the screen stays awake while you train, and a
-  rest-timer alert can flash the screen for loud gyms.
-- Swipe a set left to delete it (with Undo) or right to copy it. Pyramid sets with their own reps
-  and rest per set, and a scroll wheel for any rest time up to 15 minutes.
-
-**Progress**
-
-- Progression rules per routine or per exercise: linear, Greyskull LP, double progression through a
-  visible rep range, triple progression (reps, then sets, then load), or adding time. Each target explains why it is that number; missed reps never
-  add load, stalls trigger a deload.
-- Estimated 1RM per exercise with its own curve, Structural Balance ratios (Poliquin, Thibaudeau,
-  ATG), a year-long activity heatmap.
-- A muscle map in three modes: where your volume went, what is still recovering, and what has gone
-  untrained.
-- Body-weight chart against a goal line, and progress photos on a timeline with a before/after
-  slider.
-- Edit any saved workout after the fact, log one you did on paper, or move it to the right date.
-  Records are re-read from the corrected history.
-
-**Accounts and data**
-
-- Passkeys (Face ID, Touch ID, fingerprint) with per-profile data synced across devices. Password
-  sign-in can be switched on per instance; new devices pair with a one-time code or QR.
-- Two devices editing at once merge field by field instead of overwriting each other (see
-  [sync](#how-sync-works)).
-- Import from FitNotes, Strong, Hevy (CSV or API key) and Apple Health weight exports. Export
-  everything as one JSON file whenever you like.
-- Share a plan as a small file or print it as a PDF.
-- Optional admin dashboard with invite-only signup and an activity log.
-- 19 languages, including right-to-left Arabic and Traditional Chinese. Exercise names and
-  instructions are translated for most of them.
-
-**Optional extras, off by default**
-
-- An [AI coach](docs/AI_COACH.md) that drafts a week of routines and later suggests changes based on
-  what you logged. You approve every change. It runs on your server with your own provider key
-  (Anthropic, OpenAI, Gemini or any OpenAI-compatible endpoint, Ollama included).
-- An [MCP server](mcp/README.md) so an assistant like Claude Desktop can answer questions about your
-  training history. Read-only and local; not part of the Docker build.
-
-The full list of what changed release by release is in the [changelog](CHANGELOG.md).
-
-## Quick start
-
-You need [Docker](https://docs.docker.com/get-docker/) with Compose.
-
-```bash
-git clone https://github.com/DuarteSantos8/openGym
-cd openGym
-cp .env.example .env
-docker compose pull      # prebuilt images, amd64 + arm64 (skip this to build from source)
-docker compose up -d
+```powershell
+pwsh -File scripts/build-lite-apk.ps1 -Variant remote
+pwsh -File scripts/build-lite-apk.ps1 -Variant local
+pwsh -File scripts/build-lite-apk.ps1 -Variant full
 ```
 
-Open <http://localhost:8080>, tap **Create profile**, and you're in. The exercise animations are
-part of the image, so there's nothing else to download.
+产物输出到 `outputs/`，文件名格式为 `qinglian-lite-<变体>-v<版本号>-debug.apk`。
 
-To reach it from your phone with passkeys you need HTTPS on a domain; that's a two-line change in
-`.env`. The [self-hosting guide](docs/SELF_HOSTING.md) walks through Cloudflare Tunnel, Caddy,
-Traefik and nginx, and there are separate guides for
-[HTTPS on a LAN](docs/SELF_HOSTING_HTTPS.md) and [Kubernetes](docs/SELF_HOSTING_KUBERNETES.md).
+## iOS：源码构建
 
-> [!NOTE]
-> Images are published from the same tag to `ghcr.io/duartesantos8/opengym-{api,web}`
-> (what `docker-compose.yml` pulls) and `registry.gitlab.com/duartesantos8/opengym/{api,web}`. Swap
-> the `image:` lines if you prefer GitLab's registry, or run `docker compose up -d --build` to build
-> locally. Either way you don't need Node on the host.
+仓库不提供现成的 `.ipa`。原生 iOS 包必须在 Mac 上用 Xcode 从源码构建，需要 Xcode 15+、CocoaPods 和 Node.js 20+：
 
-<details>
-<summary><b>Configuration reference</b> (all through <code>.env</code>)</summary>
+```bash
+cd frontend
+npm install
+npm run build:mobile
+npx cap open ios
+```
 
-| Variable | What it does | Default |
-|---|---|---|
-| `RP_ID` | Hostname passkeys are bound to | `localhost` |
-| `ORIGIN` | Full URL the app is served from | `http://localhost:8080` |
-| `WEB_PORT` | Host port for the web UI | `8080` |
-| `NGINX_PORT` | Port the web container listens on inside the container | `80` |
-| `BACKEND` | Name of the API service that `/api` is proxied to | `api` |
-| `PORT` | Port the API listens on; the web container proxies to the same value | `3000` |
-| `RP_NAME` | Name shown in the passkey prompt | `openGym` |
-| `SESSION_DAYS` | How long a sign-in lasts, in days | `90` |
-| `ADMIN_UIDS` | User ids that get the admin dashboard, comma-separated | *(none)* |
-| `FIRST_USER_ADMIN` | `1`: the first profile created on an empty instance becomes its admin | *(off)* |
-| `INVITE_ONLY` | Require an invite code to create a profile | *(off)* |
-| `ALLOW_GUEST` | Offer "Continue without account"; `0` requires a profile | *(on)* |
-| `PASSWORD_LOGIN` | Offer name-and-password sign-in next to passkeys | *(off)* |
-| `TRUST_PROXY` | Let the sign-in throttle read the client address from proxy headers | `1` in `docker-compose.yml` |
-| `AUDIT_LOG` | Record sign-ins and admin actions; `0` records nothing | *(on)* |
-| `AUDIT_MAX` | Events kept in the activity log; `0` for no limit | `5000` |
-| `AUDIT_DAYS` | Days kept in the activity log; `0` keeps until `AUDIT_MAX` | `90` |
-| `AUDIT_IP` | Record the caller's address: `off`, `net` (network only) or `full` | `off` |
-| `ALLOWED_PRIVATE_IPS` | Private addresses push endpoints may resolve to (FakeDNS, split-horizon DNS): comma-separated IPs, `a-b` ranges or CIDR blocks | *(none)* |
-| `VAPID_SUBJECT` | Contact URL sent with push notifications | your `ORIGIN` |
-| `API_TARGET` | API image to build: `default`, or `coach` with the Claude Agent SDK and Codex CLI | `default` |
-| `COACH_DISABLED` | `1` forces the AI coach off instance-wide | *(unset)* |
+Xcode 打开后，在 `Signing & Capabilities` 中选择自己的 Team，连接 iPhone 或 iPad 后直接运行。免费 Apple ID 签名的应用 7 天后过期，需要重新从 Xcode 安装。
 
-Push-notification keys are generated on first run into `./data/vapid.json`. `DATA_DIR` is pinned to
-`/data` inside the container and mapped to `./data` on the host; change the volume, not the
-variable. The [self-hosting guide](docs/SELF_HOSTING.md) covers every option in detail.
+## 在线动作素材
 
-</details>
+动作动画不会在应用启动时一次性下载。打开动作详情时才发起请求，避免浪费流量和拖慢启动。
 
-## Phone app
+默认使用公开镜像：
 
-The same codebase builds a standalone app with Capacitor: no account, no server, everything stays
-on the phone, with native reminders and a rest countdown in the notification shade.
+- 静态图与动画：`DuarteSantos8/openGym` 的 `catalogue/media`
+- GIF 镜像：`hasaneyldrm/exercises-dataset`
 
-- **Android:** download the signed APK from the [latest release](https://github.com/DuarteSantos8/openGym/releases/latest)
-  or the [website](https://opengym.ch). Each build sits next to its `.sha256`, and
-  the app checks for updates itself. openGym is deliberately not on the Play Store.
-- **iPhone:** Apple doesn't allow installs outside the App Store. Self-host and add the PWA to your
-  home screen from Safari, or build the native app onto your own device with Xcode.
+也可以在应用内手动设置图源地址。若自建媒体服务，把地址填到对应设置项即可，前端不绑定特定服务器。
 
-Details and build instructions: [docs/MOBILE.md](docs/MOBILE.md).
+> 公开分发前请先确认素材授权。动作视频的版权归原作者所有，能否二次分发以原始数据集的许可声明为准。
 
-## How it works
+## AI 教练
 
-<p align="center">
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/diagrams/architecture-dark.png">
-  <img src="docs/diagrams/architecture.png" alt="Architecture: the phone talks HTTPS to nginx (web), which serves the app and proxies /api to the Node api; the api stores JSON in ./data. The exercise media ship inside the web image; the AI coach and MCP server are optional." width="520">
-</picture>
-</p>
+AI 教练不是内置模型，也不会把数据发到第三方。它是一个 OpenAI 兼容接口入口，由你自己填写：
 
-- **`frontend/`** is React 19 and Vite (React Router, Zustand), built to static files inside Docker.
-- **`api/`** is plain `node:http` with two dependencies: `@simplewebauthn/server` for passkeys and
-  `web-push` for notifications. Everything is stored as JSON under `./data`.
-- **`web/`** builds the frontend and serves it with nginx, proxying `/api` so the whole app sits on
-  one origin, which passkeys require.
+- Base URL
+- API Key
+- 模型名称
 
-The training logic (progression rules, 1RM, how a logged session is read back) lives in pure
-functions under `frontend/src/lib/` with tests beside them. The HTTP API is documented as an
-OpenAPI spec in [`api/openapi.yaml`](api/openapi.yaml), browsable at
-[opengym.ch/api.html](https://opengym.ch/api.html).
+和普通豆包聊天应用的区别：AI 教练运行在轻练内部，可以把你的训练计划、动作和记录一起带入对话，回答更贴近你的训练上下文；普通豆包默认不知道这些数据。
 
-### How sync works
+API Key 只保存在本机，不会写入仓库或提交到版本控制。
 
-Each profile's data is one document with a server revision. A device sends the revision it last
-saw along with its changes; if another device wrote in between, the server refuses and returns the
-current document so the device can merge and retry. Every change carries its own stamp, down to a
-single setting or routine field, so the merge keeps the newest edit of each one and a deletion stays
-deleted.
+## 本地数据
 
-<p align="center">
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/diagrams/sync-dark.png">
-  <img src="docs/diagrams/sync.png" alt="Sync: a device saves with the revision it last saw; if another device wrote in between, the server answers 409 with the current document, the device merges and saves again." width="560">
-</picture>
-</p>
+- 训练记录保存在本机
+- 支持导出 JSON 备份
+- 不依赖账号系统，也不需要登录
 
-Nothing that hasn't reached the server is discarded on disconnect or sign-out, and the app shows a
-banner whenever it's working offline.
+## 本地开发
 
-### Your data
+```powershell
+cd frontend
+npm install
+npm run dev:lite
+```
 
-Everything lives in `./data` on your host:
+构建网页版：
 
-| File | Contents |
-|---|---|
-| `db.json` | Profiles and public passkey data |
-| `db.json.bak` | A copy of the last good `db.json`, used if the main file can't be read |
-| `state-<user>.json` | Each user's plan, workouts, body weight and settings |
-| `audit.log` | Admin activity log (no IP addresses unless you turn that on) |
-| `secret` | Session-cookie signing key |
+```powershell
+cd frontend
+npm run build:lite
+```
 
-Back up `./data` and you've backed up everything. Passkey private keys never reach the server; they
-stay in your phone's secure hardware or your password manager.
+运行测试：
 
-## Documentation
+```powershell
+cd frontend
+npm test
+```
 
-The [documentation index](docs/README.md) sorts every guide by who it's for. The most used ones:
+## 目录结构
 
-| I want to | Read |
-|---|---|
-| Get a quick answer | [FAQ](docs/FAQ.md) |
-| Set up my own instance | [Self-hosting](docs/SELF_HOSTING.md) |
-| Use the Android or iPhone app | [Phone app](docs/MOBILE.md) |
-| Bring my history from another app | [Importing data](docs/DATA_IMPORTS.md) |
-| Turn on the AI coach | [AI coach](docs/AI_COACH.md) |
-| Contribute code | [Contributing](CONTRIBUTING.md) |
-| Report a security problem | [Security](SECURITY.md) |
+```text
+frontend/            Web 前端与 Capacitor Android 工程
+  src/               页面、组件与业务逻辑
+  android/           Android 原生工程
+  ios/               iOS 原生工程
+  resources/         应用图标源文件
+catalogue/           动作数据与说明
+scripts/             构建、素材与打包脚本
+outputs/             构建产物
+```
 
-## Roadmap
+## 版本
 
-A release roughly every two weeks, each small and themed. The full plan is in
-[ROADMAP.md](ROADMAP.md), and the issues sit in the
-[GitHub milestones](https://github.com/DuarteSantos8/openGym/milestones). The next two releases
-finish the community wishes, then comes a new exercise database and a themed release every
-two weeks after it.
+- 当前版本：`0.1.0`
+- Android / iOS 包名：`app.qinglian.fitness`
+- 调试包名：`app.qinglian.fitness.test`
 
-| Release | When | Theme |
-|---|---|---|
-| v1.3.10 | released Oct 2026 | New design, rotation, swipe actions, safer sync |
-| v1.3.11 | next | Fixes, about thirty community pull requests, Health Connect, measurements |
-| v1.3.12 | Nov 2026 | Community features: focus view, widget, timer rework |
-| v1.4.0 | Nov 2026 | A new exercise database |
-| v1.4.1 to v1.4.4 | Dec 2026 and Jan 2027 | Programmes, the progression engine, cardio |
-| v1.4.5 to v1.4.10 | Jan to Apr 2027 | Search, accounts, the iOS app, Android and health, looks |
-| later | | Database storage |
+## 许可与声明
 
-## Community
+本项目代码以 **GNU AGPL v3.0** 发布。你可以自行部署、修改和分发，但分发修改版时需要继续以 AGPL 开源，并保留上游署名。
 
-- **[Discord](https://discord.gg/e62jY6fwVb)** for release announcements, self-hosting help and
-  quick back-and-forth. Usually the fastest way to get an answer.
-- **[Discussions](https://github.com/DuarteSantos8/openGym/discussions)** for questions and ideas
-  you want the next person to find by searching.
-- **[Issues](https://github.com/DuarteSantos8/openGym/issues)** for reproducible bugs and agreed-on
-  work. Login trouble is almost always an `RP_ID`/`ORIGIN` mismatch; the
-  [self-hosting guide](docs/SELF_HOSTING.md) covers it.
-- **[Pull requests](https://github.com/DuarteSantos8/openGym/pulls)** are welcome; start with
-  [CONTRIBUTING.md](CONTRIBUTING.md).
+动作媒体（图片与视频）的版权与许可独立于代码，详见 [NOTICE.md](NOTICE.md)。Gym visual 素材仅授权用于 openGym 应用内，二次分发或商用前需要自行取得授权。
 
-<a href="https://github.com/DuarteSantos8/openGym/graphs/contributors">
-  <img src="https://contrib.rocks/image?repo=DuarteSantos8/openGym&max=60" alt="Contributors">
-</a>
+上游项目与版权：
 
-### Where the code lives
-
-GitHub is the home of the project. [gitlab.com/DuarteSantos8/opengym](https://gitlab.com/DuarteSantos8/opengym)
-is a mirror, updated by a GitHub Actions workflow on every push to `main` and every release tag. It
-exists because its CI builds the release artifacts: the signed APK, the multi-arch images and the
-SBOMs. Nothing is merged there by hand. In the changelog, `!NN` refers to a GitLab merge request
-from the weeks in August and September 2026 when the project lived there.
-
-## How openGym is built
-
-People have asked about this, so plainly: **openGym is developed with
-[Claude Code](https://claude.com/claude-code)**, Anthropic's coding agent. A large share of the
-code, tests and documentation is drafted in Claude Code sessions, and the repository carries a
-[`CLAUDE.md`](CLAUDE.md) with the project context those sessions start from.
-
-What that does and doesn't mean:
-
-- **A person decides and ships.** What goes in, what gets reviewed and merged, and every release
-  are the maintainer's call. Changes are tested on a staging instance and on real phones before
-  they are tagged.
-- **Tests hold the logic in place.** The training logic is covered by unit tests, and pull requests
-  run the frontend, API and MCP suites in CI. That is the guard against plausible-looking code
-  that is wrong, whoever or whatever wrote it.
-- **The app itself doesn't need an LLM.** Nothing in a default install calls an AI service. The AI
-  coach and the MCP server are opt-in, and the coach only talks to the provider you configure, with
-  your own key.
-
-Community pull requests are written by their authors, with whatever tools they like, and reviewed
-the same way.
-
-## Support
-
-openGym is free and stays free: AGPL, no paid tier, nothing held back for sponsors. If it replaced a
-paid tracker for you and you'd like to chip in, there's a coffee button below. A star, a bug report
-or a pull request helps just as much.
-
-<a href="https://buymeacoffee.com/duartesantos" target="_blank">
-  <img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" alt="Buy Me A Coffee" height="60" width="217">
-</a>
-
-[![Star History Chart](https://api.star-history.com/svg?repos=duartesantos8/opengym&type=Date)](https://star-history.com/#DuarteSantos8/openGym&Date)
-
-## License
-
-**openGym's own code** is licensed under the [GNU AGPL v3.0](LICENSE). You can self-host, use,
-modify and share it; if you run a modified version as a network service, you have to offer that
-version's source under the same license.
-
-> [!IMPORTANT]
-> **The exercise media is not covered by that license.** The stills and animations are
-> © Aliaksandr Makatserchyk, [Gym visual](https://gymvisual.com/), licensed for use in openGym only:
-> 180 px in this repository and on self-hosted servers, larger only inside the app packages. A
-> non-commercial fork may keep them unmodified with the notice; anything else needs your own licence
-> from gymvisual.com. The exercise text in `catalogue/` is openGym's and open to contributions.
-
-**Contributing:** pull requests are signed off once with the [Contributor License Agreement](CLA.md):
-you keep the copyright in your work, openGym may use and relicense it (so the app can stay in the
-App Store and Google Play long term), and every version released under the AGPL stays AGPL.
-
-Full third-party notices, including the body-diagram geometry, are in [NOTICE.md](NOTICE.md).
+> openGym, Copyright (C) 2026 Duarte Santos.
+> <https://github.com/DuarteSantos8/openGym>

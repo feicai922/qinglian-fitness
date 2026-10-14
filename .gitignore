@@ -28,5 +28,10 @@ junit.xml
 coverage/
 frontend/bundle-size.json
 
+# Local training exports, scratch work, and release-only binaries
+export/
+work/
+outputs/
+
 # Local planning notes
 docs/superpowers/plans/

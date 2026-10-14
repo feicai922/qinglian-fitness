@@ -7,7 +7,10 @@
 // they are — including every existing profile whose `lang` is the old default.
 //
 // For a marked copy, the instance's DEFAULT_LANG (GET /api/config `default_lang`) comes first,
-// then the first of the browser's languages this app speaks, then English.
+// then the first of the browser's languages this app speaks, then FALLBACK_LANG. In a lite build
+// (lib/lite.js) this fork is Chinese-only: the picker is not there, so a first run — and a copy
+// that picked another language on the full build — both land on FALLBACK_LANG with nothing to
+// override it.
 //
 // That answer is worked out where the language is used (effectiveLang) and never written back
 // into the state. It depends on the device — two phones of one profile can have browsers in two
@@ -15,8 +18,14 @@
 // device, pulled by the other, re-derived there and pushed back, round after round. `lang` is
 // only written when someone picks one in Settings, which also clears the mark.
 import { LANGS } from './i18n-core.js'
+import { LITE } from './lite.js'
 
 const KEYS = Object.keys(LANGS)
+
+// The language a first run lands on when nothing else says otherwise: the instance has no
+// DEFAULT_LANG and the browser speaks nothing the app ships. This fork is used in Chinese, so
+// that answer is Simplified Chinese instead of English; a language picked in Settings still wins.
+export const FALLBACK_LANG = 'zh'
 
 /** A language tag ('pt-BR', 'pt_br', 'de-AT', 'en-US') as one of LANGS' keys, or null. */
 export function matchLocale(tag) {
@@ -35,9 +44,12 @@ export function matchLocale(tag) {
 /** The language a copy that never chose one should be in, or null for a copy that chose. */
 export function autoLang(S, config, navLangs = []) {
   if (!S || S.langAuto !== true) return null
+  // 精简模式 is Chinese-only (lib/lite.js): the browser's languages AND the instance's
+  // DEFAULT_LANG are skipped, so a first run lands on FALLBACK_LANG whatever the server says.
+  if (LITE) return FALLBACK_LANG
   return matchLocale(config?.default_lang)
     || (navLangs || []).map(matchLocale).find(Boolean)
-    || 'en'
+    || FALLBACK_LANG
 }
 
 // The instance's DEFAULT_LANG as last seen on this device, so a boot does not show the browser's
@@ -57,6 +69,10 @@ function cachedDefaultLang() {
  * stands in for it; with none seen yet the copy's stored language is used unchanged.
  */
 export function effectiveLang(S, config, navLangs = browserLangs()) {
+  // 精简模式 is Chinese-only (lib/lite.js): a profile that picked another language on the full
+  // build, or that never picked one at all, both read Simplified Chinese here. The state keeps
+  // the picked language untouched, so switching back to the full build shows it again.
+  if (LITE) return FALLBACK_LANG
   const own = (S && typeof S.lang === 'string' && S.lang) || 'en'
   if (!S || S.langAuto !== true) return own
   let cfg = config

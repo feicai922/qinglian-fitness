@@ -1,11 +1,13 @@
 {
-  "name": "opengym-frontend",
+  "name": "qinglian-frontend",
   "private": true,
-  "version": "1.4.1",
+  "version": "0.1.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "dev:lite": "vite --mode lite",
     "build": "vite build",
+    "build:lite": "vite build --mode lite",
     "build:mobile": "VITE_MOBILE=1 vite build && node ../scripts/catalogue/stage-media.mjs dist && cap sync && node scripts/check-mobile-bundle.mjs",
     "preview": "vite preview",
     "test": "vitest run",

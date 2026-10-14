@@ -1,13 +1,17 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 512 512">
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
   <!-- App-icon source == the PWA icon (public/icon-512.png), geometry traced 1:1 so the
        native app, the home-screen PWA and the website favicon all show the same icon.
-       Generate platform icons + splash via `npx @capacitor/assets generate` — docs/MOBILE.md. -->
-  <rect width="512" height="512" fill="#0c0e12"/>
-  <g fill="#a3e635">
-    <rect x="80" y="242" width="352" height="28"/>
-    <rect x="80" y="199" width="36" height="114"/>
-    <rect x="131" y="169" width="47" height="174"/>
-    <rect x="334" y="169" width="47" height="174"/>
-    <rect x="396" y="199" width="36" height="114"/>
+       The artwork stays inside a ~63% radius safe zone so the iOS/Android rounded mask
+       never clips the progress ring. Generate platform icons + splash via
+       `npx @capacitor/assets generate` — docs/MOBILE.md. -->
+  <rect width="1024" height="1024" fill="#0c0e12"/>
+  <circle cx="512" cy="512" r="296" fill="none" stroke="#1f2937" stroke-width="48"/>
+  <path d="M512 216 A296 296 0 1 1 304 302" fill="none" stroke="#a3e635" stroke-width="48" stroke-linecap="round"/>
+  <g fill="#a3e635" transform="translate(512,512) scale(1.78) translate(-256,-256)">
+    <rect x="140" y="238" width="232" height="30" rx="15"/>
+    <rect x="140" y="196" width="34" height="114" rx="14"/>
+    <rect x="192" y="170" width="44" height="166" rx="18"/>
+    <rect x="276" y="170" width="44" height="166" rx="18"/>
+    <rect x="338" y="196" width="34" height="114" rx="14"/>
   </g>
 </svg>

@@ -11,7 +11,10 @@ import {
 // catalogue/i18n/<lang>.json and may be partial (anything missing shows the English title), so
 // coverage and the language rules below are pinned on the 1,324 entries of the v1.3 catalogue,
 // whose names were curated and reviewed. Names for the v1.4 additions only have to be well formed.
-const packs = import.meta.glob('../exercise-names/*.js', { eager: true, import: 'default' })
+// zh.lite.js is a generated, whitelist-trimmed pack for the Lite build, not a catalogue language.
+const packs = Object.fromEntries(Object.entries(
+  import.meta.glob('../exercise-names/*.js', { eager: true, import: 'default' })
+).filter(([path]) => !path.endsWith('.lite.js')))
 const EXIDX = new Map(EXDB.map(exercise => [exercise.id, exercise]))
 const LEGACY_IDS = new Set(V13_IDS)
 const legacy = EXDB.filter(exercise => LEGACY_IDS.has(exercise.id))

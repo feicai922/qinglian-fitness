@@ -1,11 +1,11 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources>
-    <string name="app_name">openGym</string>
-    <string name="title_activity_main">openGym</string>
-    <string name="package_name">ch.duartesantos.opengym</string>
-    <string name="custom_url_scheme">ch.duartesantos.opengym</string>
-    <string name="rest_countdown_channel_name">Rest countdown</string>
-    <string name="rest_channel_name">Rest timer</string>
-    <string name="rest_quiet_channel_name">Rest timer, without vibration</string>
-    <string name="rest_channel_desc">Rest between sets, in the notification shade. The lock screen shows it only when notifications are allowed there.</string>
+    <string name="app_name">轻练</string>
+    <string name="title_activity_main">轻练</string>
+    <string name="package_name">app.qinglian.fitness</string>
+    <string name="custom_url_scheme">app.qinglian.fitness</string>
+    <string name="rest_countdown_channel_name">组间休息倒计时</string>
+    <string name="rest_channel_name">休息计时器</string>
+    <string name="rest_quiet_channel_name">休息计时器（不振动）</string>
+    <string name="rest_channel_desc">组间休息提醒会显示在通知栏；只有在允许锁屏通知时，锁屏上才会显示。</string>
 </resources>

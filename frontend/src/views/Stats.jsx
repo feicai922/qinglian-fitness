@@ -27,13 +27,15 @@ import { anchorsByWorkout, resolveSetRir } from '../lib/recovery.js'
 import { Button, Segmented, SelectRow } from '../components/ui.jsx'
 import { tappable } from '../lib/use-sheet-keyboard.js'
 import { isWarmupRow } from '../lib/workout-model.js'
+import { LITE } from '../lib/lite.js'
 
 // Set 1 to 5 on the per-set chart — system colours, so each line keeps its hue in dark mode.
 const SET_COLORS = ['var(--blue)', 'var(--green)', 'var(--orange)', 'var(--purple)', 'var(--pink)']
 
 // The date range buttons under Body weight, and since issue #511 under Exercise progress too.
 // In days, 0 = everything; a function because the labels follow the current language.
-const rangeOptions = () => [{ value: 30, label: '1M' }, { value: 90, label: '3M' }, { value: 365, label: '1Y' }, { value: 0, label: t('All') }]
+const rangeLabel = (full, lite) => LITE ? lite : full
+const rangeOptions = () => [{ value: 30, label: rangeLabel('1M', '30 天') }, { value: 90, label: rangeLabel('3M', '90 天') }, { value: 365, label: rangeLabel('1Y', '1 年') }, { value: 0, label: t('All') }]
 // Where a range starts, in ms. Worked out once per pick rather than from each render's clock, so
 // the memoised chart arrays below keep their identity (LineChart drops its hover on a new one).
 const rangeStart = days => (days ? Date.now() - days * 86400000 : 0)
@@ -120,6 +122,33 @@ function profileBodyweightKg(S) {
   const last = entries.slice().sort((a, b) => String(a.d).localeCompare(String(b.d))).at(-1)
   if (!last || !(last.w > 0)) return null
   return S.unit === 'lb' ? last.w * LB_TO_KG : last.w
+}
+
+// 精简模式: the muscle card upstream renders carries a body map, fatigue, retained
+// strength and a planned-vs-completed comparison (lib/lite.js). What is left here is the
+// one question the body map answered — which muscles got trained, and how much — as a
+// plain list of sets worked per muscle over a chosen window.
+function MuscleSetsCard({ S }) {
+  const [win, setWin] = useState(30)
+  const now = useNow()
+  const inWin = win === 0
+    ? S.workouts
+    : muscleBalanceWindow(S.workouts, win, now, todayISO(), weekStartOf(S))
+  const load = loadOfWorkouts(inWin)
+  const { worked } = rankOf(load)
+  const max = worked.length ? load[worked[0]] : 0
+  return <div className="card">
+    <h2>{t('Muscle balance')} <span className="dim" style={{ textTransform: 'none', letterSpacing: 0 }}>· {t('by sets worked')}</span></h2>
+    <Segmented className="seg-range" value={win} onChange={setWin}
+      options={[{ value: 7, label: t('Week') }, { value: 30, label: rangeLabel('30d', '30 天') }, { value: 90, label: rangeLabel('90d', '90 天') }, { value: 0, label: t('All') }]} />
+    {worked.length ? <div style={{ marginTop: 10 }}>
+      {worked.map(m => <div key={m} className="mrow" data-muscle-volume={m}>
+        <span className="nm">{t(MUSCLE_NAME[m])}</span>
+        <span className="bar"><i style={{ width: Math.round(load[m] / max * 100) + '%' }} /></span>
+        <span className="v">{t('{0} sets', fmtNum(Math.round(load[m] * 10) / 10))}</span>
+      </div>)}
+    </div> : <div className="muted small" style={{ marginTop: 10 }}>{t('No workouts in this period yet.')}</div>}
+  </div>
 }
 
 function MuscleBalance({ S }) {
@@ -230,7 +259,7 @@ function MuscleBalance({ S }) {
           onClick={() => { setHard(h => !h); setSel(null) }}>{on ? t('Hard') : t('All')}</Button>}
       </div>
       <Segmented className="seg-range" value={win} onChange={v => { setWin(v); setSel(null); setWeeklyExpanded(false) }}
-        options={[{ value: 7, label: t('Week') }, { value: 30, label: '30d' }, { value: 90, label: '90d' }, { value: 0, label: t('All') }]} />
+        options={[{ value: 7, label: t('Week') }, { value: 30, label: rangeLabel('30d', '30 天') }, { value: 90, label: rangeLabel('90d', '90 天') }, { value: 0, label: t('All') }]} />
       {weekly ? <div data-weekly-volume-comparison data-week={selectedWeek}>
         <div className="row between" style={{ margin: '10px 0 6px' }}>
           <button className="iconbtn sm" aria-label={t('Previous week')} onClick={() => { setWeekOffset(offset => offset - 1); setSel(null); setWeeklyExpanded(false) }}><Icon name="chevronLeft" /></button>
@@ -276,7 +305,9 @@ function MuscleBalance({ S }) {
                   ? <span className="dim" style={{ fontSize: 11, marginInlineStart: 6 }}>{t('primary')}</span>
                   : <span className="dim" style={{ fontSize: 11, marginInlineStart: 6 }}>{t('secondary')}</span>}
               </span>
-              <span className="small dim" style={{ display: 'block', fontWeight: 400 }}>{t('Est. 1RM')}: {fmtNum(row.est)} {S.unit} · {fmtDate(row.estDate, true)}</span>
+              {/* 精简模式: the row's estimated 1RM is upstream's (lib/lite.js); the exercise
+                  and its retained-strength bar stay. */}
+              {!LITE && <span className="small dim" style={{ display: 'block', fontWeight: 400 }}>{t('Est. 1RM')}: {fmtNum(row.est)} {S.unit} · {fmtDate(row.estDate, true)}</span>}
             </span>
             {/* Filled by width, like the bars around it, rather than a 'to right' gradient: a block
                 starts at the inline start, so in right-to-left it fills from the right. */}
@@ -342,7 +373,7 @@ function EffortCard({ S }) {
   return <div className="card">
     <h2>{t('Effort')} <span className="dim" style={{ textTransform: 'none', letterSpacing: 0 }}>· {t('how close to failure')}{estimated ? ' · ' + t('estimated') : ''}</span></h2>
     <Segmented className="seg-range" value={win} onChange={setWin}
-      options={[{ value: 30, label: '30d' }, { value: 90, label: '90d' }, { value: 365, label: '1Y' }, { value: 0, label: t('All') }]} />
+      options={[{ value: 30, label: rangeLabel('30d', '30 天') }, { value: 90, label: rangeLabel('90d', '90 天') }, { value: 365, label: rangeLabel('1Y', '1 年') }, { value: 0, label: t('All') }]} />
     {sum.rated === 0 && sum.est === 0 ? <div className="muted small">{t('No rated sets in this period.')}</div> : <>
       <div className="row between" style={{ alignItems: 'flex-end', gap: 12 }}>
         <div>
@@ -563,12 +594,15 @@ export default function Stats() {
   )
   const e1ChartPts = useMemo(() => e1Pts.filter(p => p.t >= exFrom).map(p => ({ t: p.t, y: p.y, d: p.d })), [e1Pts, exFrom])
   const e1Best = curEx && curMode === 'reps' ? best1RM(S, curEx) : null
-  const showE1 = e1Pts.length > 0
+  // 精简模式: the exercise chart keeps top set, per set and max reps — the estimated-1RM
+  // curve is upstream's (lib/lite.js).
+  const showE1 = !LITE && e1Pts.length > 0
   // Effort on this exercise, per session. It rides on the top-set curve as well as having a
   // curve of its own, because the two only mean something together: the same weight moved
   // with more left in the tank is progress a weight-only chart draws as a flat line.
   const exRir = exPts.map(p => avgRir(p.sets))
-  const showEff = exRir.filter(v => v != null).length >= 3
+  // 精简模式: weight and reps only (lib/lite.js) — the effort curve follows the column.
+  const showEff = !LITE && exRir.filter(v => v != null).length >= 3
   const effPts = exPts.map((p, i) => (exRir[i] == null ? null : { t: p.t, y: toScale(kind, exRir[i]), d: p.d })).filter(p => p && inExRange(p))
   // Pyramid sets' Max sets: the most reps in one, per workout — the point of a Max set is seeing
   // that number climb, which the top-set weight line does not show.
@@ -644,7 +678,9 @@ export default function Stats() {
 
     </div>
 
-    <div className="card">
+    {/* 精简模式: the activity heatmap is upstream's year view (lib/lite.js); the tiles,
+        muscle sets, body weight and recent workouts stay. */}
+    {!LITE && <div className="card">
       <h2>{t('Activity (last 12 months)')}</h2>
       <Heatmap
         S={S}
@@ -652,28 +688,37 @@ export default function Stats() {
         onMetricChange={metric => useStore.getState().update(s => { s.heatmapMetric = metric })}
         onDay={iso => { const ws = workouts.filter(w => workoutDay(w) === iso); if (ws.length === 1) workoutDetailSheet(ws[0]); else if (ws.length) calendarSheet(iso); else dayOverrideSheet(iso) }}
       />
-    </div>
+    </div>}
 
-    {(workouts.length > 0 || Object.keys(loadOfWeeklyPlan(S)).length > 0) && <MuscleBalance S={S} />}
-    {S.routines.length > 0 && <WeeklyPlanVolume S={S} />}
-    {workouts.length > 0 && <div className="card row between" style={{ alignItems: 'center', gap: 12 }}>
+    {/* 精简模式: the body map, fatigue and retained strength are upstream's (lib/lite.js);
+        what is left is the plain sets-per-muscle list. */}
+    {(workouts.length > 0 || Object.keys(loadOfWeeklyPlan(S)).length > 0) && (LITE
+      ? <MuscleSetsCard S={S} />
+      : <MuscleBalance S={S} />)}
+    {/* 精简模式: planned weekly volume per muscle is upstream analysis (lib/lite.js); the
+        Plan row that linked here is held back too. */}
+    {!LITE && S.routines.length > 0 && <WeeklyPlanVolume S={S} />}
+    {/* 精简模式: the three extra progress screens (structural balance, progress photos, body
+        measurements) are upstream's and have no route here — no card points at nothing. */}
+    {!LITE && workouts.length > 0 && <div className="card row between" style={{ alignItems: 'center', gap: 12 }}>
       <div style={{ minWidth: 0 }}><h2 style={{ margin: 0 }}>{t('Structural balance')}</h2>
         <div className="muted small" style={{ marginTop: 4 }}>{t('See which lift is holding back the rest.')}</div></div>
       <Button size="sm" variant="tinted" trailingIcon="chevronRight" style={{ flexShrink: 0 }} onClick={() => nav('/structural-balance')}>{t('Open')}</Button>
     </div>}
-    {workouts.length > 0 && <div className="card row between" style={{ alignItems: 'center', gap: 12 }}>
+    {!LITE && workouts.length > 0 && <div className="card row between" style={{ alignItems: 'center', gap: 12 }}>
       <div style={{ minWidth: 0 }}><h2 style={{ margin: 0 }}>{t('Progress photos')}</h2>
         <div className="muted small" style={{ marginTop: 4 }}>{t('Every photo you kept with a workout, lined up by date. Plus a before/after slider.')}</div></div>
       <Button size="sm" variant="tinted" trailingIcon="chevronRight" style={{ flexShrink: 0 }} onClick={() => nav('/progress-photos')}>{t('Open')}</Button>
     </div>}
-    <div className="card row between" style={{ alignItems: 'center', gap: 12 }}>
+    {!LITE && <div className="card row between" style={{ alignItems: 'center', gap: 12 }}>
       <div style={{ minWidth: 0 }}><h2 style={{ margin: 0 }}>{t('Body measurements')}</h2>
         <div className="muted small" style={{ marginTop: 4 }}>{(S.measurements || []).length
           ? t('Last check-in {0}', fmtDate(S.measurements[S.measurements.length - 1].d, true))
           : t('Waist, arms, body fat and anything else you measure, each with its own curve.')}</div></div>
       <Button size="sm" variant="tinted" trailingIcon="chevronRight" style={{ flexShrink: 0 }} onClick={() => nav('/measurements')}>{t('Open')}</Button>
-    </div>
-    {(hasEffort(S) || hasEstimableEffort(S)) && <EffortCard S={S} />}
+    </div>}
+    {/* 精简模式: RIR/RPE is upstream's (lib/lite.js); the workout has no column to rate. */}
+    {!LITE && (hasEffort(S) || hasEstimableEffort(S)) && <EffortCard S={S} />}
 
     <div className="cols">
       <div className="card">
@@ -693,7 +738,9 @@ export default function Stats() {
         </div>}
       </div>
 
-      <div className="card">
+      {/* 精简模式: per-exercise progress trends are upstream's analysis (lib/lite.js); the
+          history behind them still opens from Recent workouts and each exercise's own sheet. */}
+      {!LITE && <div className="card">
         <h2>{t('Exercise progress')}</h2>
         {exHist.length ? <>
           <div className="sect-b" style={{ marginBottom: 10 }}>
@@ -742,7 +789,7 @@ export default function Stats() {
             {t('A fuller dot means less left in the tank. The same weight at a lower {0} is progress the line alone doesn’t show.', hd)}
           </div>}
         </> : <div className="muted small">{t('Finish your first workout and your progress curves will show up here.')}</div>}
-      </div>
+      </div>}
     </div>
 
     {workouts.length > 0 && <>

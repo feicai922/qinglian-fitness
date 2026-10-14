@@ -5,9 +5,19 @@
 // A routine is [key, name, emoji, [[exerciseId, sets, reps], …]]. The key is what a plan's
 // schedule points at, so a weekday never depends on the position of a routine in the array.
 // Names stay canonical English — they become ordinary user routines, which are not translated.
+// 精简模式 (lib/lite.js) is Chinese-first, so the routines it seeds carry Chinese names instead;
+// LITE_ROUTINE_NAME holds them by key, and a key it does not know keeps the English name.
 import { uid } from './format.js'
 import { EXIDX } from './exercises.js'
 import { eqAvailable, ALL_EQUIPMENT } from './equipment.js'
+import { LITE } from './lite.js'
+
+const LITE_ROUTINE_NAME = {
+  push: '推日', pull: '拉日', legs: '腿日',
+  'upper-a': '上肢 A', 'lower-a': '下肢 A', 'upper-b': '上肢 B', 'lower-b': '下肢 B',
+  'fb-a': '全身 A', 'fb-b': '全身 B', 'fb-c': '全身 C',
+  '5x5-a': '5×5 A', '5x5-b': '5×5 B', '5x5-c': '5×5 C',
+}
 
 const PPL = [
   ['push', 'Push Day', 'barbell', [['0025', 4, 8], ['0047', 3, 10], ['0426', 3, 10], ['0334', 3, 12], ['0241', 3, 12], ['0251', 3, 10]]],
@@ -44,7 +54,12 @@ const PLANS = {
 }
 
 const build = routines =>
-  routines.map(([, name, emoji, list]) => ({ id: uid(), name, emoji, ex: list.map(([id, sets, reps]) => ({ id, sets, reps, weight: 0 })) }))
+  routines.map(([key, name, emoji, list]) => ({
+    id: uid(),
+    name: LITE ? (LITE_ROUTINE_NAME[key] || name) : name,
+    emoji,
+    ex: list.map(([id, sets, reps]) => ({ id, sets, reps, weight: 0 })),
+  }))
 
 // Fresh routine objects (new ids) — [push, pull, legs]. The demo build seeds a history on
 // top of exactly these three, so this entry point keeps its shape.

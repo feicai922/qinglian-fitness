@@ -30,8 +30,10 @@ function BuiltinMedia({ ex, id, compact, minimizable }) {
   const [failed, setFailed] = useState(null)
   const gifSize = useStore(s => s.S.gifSize)
   const body = useStore(s => figureOf(s.S))
+  // null keeps the build-time mirror; a string is the user's own source ('' switches it off).
+  const mirrorBase = useStore(s => s.S.gifMirrorBase)
   const update = useStore(s => s.update)
-  const clip = ex.gif && isVideoSrc(gifSrc(ex, body)) ? gifSrc(ex, body) : null
+  const clip = ex.gif && isVideoSrc(gifSrc(ex, body, mirrorBase)) ? gifSrc(ex, body, mirrorBase) : null
   const clipSrc = useClipInMemory(clip)
   if (!ex.gif) return null
   if (minimizable && gifSize === 'off') return null
@@ -55,7 +57,7 @@ function BuiltinMedia({ ex, id, compact, minimizable }) {
           : showGif && clip
             // the phone app is still reading the clip into memory: the still holds its place
             ? <img decoding="async" draggable={false} src={imgSrc(ex, body)} alt={exerciseNameFor(ex)} />
-          : <img decoding="async" draggable={false} src={showGif ? gifSrc(ex, body) : imgSrc(ex, body)} alt={exerciseNameFor(ex)} onError={onError} />}
+          : <img decoding="async" draggable={false} src={showGif ? gifSrc(ex, body, mirrorBase) : imgSrc(ex, body)} alt={exerciseNameFor(ex)} onError={onError} />}
       {minimizable && (
         <button className="giftoggle" onClick={toggleSize}>
           <Icon name={mini ? 'expand' : 'minimize'} />{mini ? t('Expand') : t('Minimize')}
